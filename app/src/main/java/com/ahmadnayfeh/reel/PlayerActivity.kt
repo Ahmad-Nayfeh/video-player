@@ -177,6 +177,7 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         pv.findViewById<View>(R.id.reel_rotate).setOnClickListener { toggleRotation() }
         pv.findViewById<View>(R.id.reel_queue).setOnClickListener { queueSheet() }
         pv.findViewById<View>(R.id.reel_pip).setOnClickListener { enterPip() }
+        pv.findViewById<View>(R.id.reel_color).setOnClickListener { colorModeSheet() }
         pv.findViewById<View>(R.id.reel_aspect).setOnClickListener { setResize((resizeIdx + 1) % resizeModes.size, true) }
         speedBtn.setOnClickListener { speedSheet() }
         unlockBtn.setOnClickListener { setLocked(false) }
@@ -223,6 +224,8 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         if (items.isEmpty()) { finish(); return }
         val start = if (Settings.resume(this)) Resume.get(this, items[index].mediaId) else 0L
         player.setMediaItems(items, index, start)
+        val cm = ColorModes.byKey(Settings.p(this).getString("color_mode", "normal"))
+        if (cm.key != "normal" || effectsReady) { player.setVideoEffects(cm.effects()); effectsReady = true }
         player.prepare()
         player.play()
         if (start > 0) showResumeChip(start)
@@ -599,6 +602,8 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
     private fun moreSheet() {
         val s = Sheet(this, null)
         s.row(R.drawable.ic_speed, getString(R.string.speed), fmtSpeed(player.playbackParameters.speed)) { speedSheet() }
+        s.row(R.drawable.ic_palette, getString(R.string.color_mode),
+            getString(ColorModes.byKey(Settings.p(this).getString("color_mode", "normal")).label)) { colorModeSheet() }
         s.row(R.drawable.ic_aspect, getString(R.string.aspect), resizeLabels[resizeIdx]) {
             val a = Sheet(this, getString(R.string.aspect))
             resizeLabels.forEachIndexed { i, l -> a.row(R.drawable.ic_aspect, l, checked = i == resizeIdx) { setResize(i, true) } }
@@ -798,6 +803,10 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         gestures.gesturesEnabled = !isInPictureInPictureMode
+        if (!isInPictureInPictureMode && lifecycle.currentState == androidx.lifecycle.Lifecycle.State.CREATED && screenOn()) {
+            closeFromPip() // the user swiped away / tapped X on the floating window
+            return
+        }
         if (isInPictureInPictureMode) {
             pv.useController = false
             info.visibility = View.GONE; resumeChip.visibility = View.GONE
@@ -832,6 +841,8 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         super.onStop()
         saveResume()
         handler.removeCallbacks(saver)
+        // Closing the floating (PiP) window means "stop", not "keep playing in the background".
+        if (isInPip() && screenOn()) { closeFromPip(); return }
         val keepGoing = Settings.bgPlay(this) && player.isPlaying && !isFinishing && !isChangingConfigurations
         if (!(keepGoing && handOff())) player.pause()
     }
@@ -844,6 +855,49 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         player.release()
         bgFuture?.let { MediaController.releaseFuture(it) }
         super.onDestroy()
+    }
+
+    private fun screenOn() = (getSystemService(POWER_SERVICE) as android.os.PowerManager).isInteractive
+
+    private var closing = false
+    private var effectsReady = false
+
+    private fun colorModeSheet() {
+        val cur = Settings.p(this).getString("color_mode", "normal")
+        val s = Sheet(this, getString(R.string.color_mode))
+        ColorModes.all.forEach { m ->
+            s.row(R.drawable.ic_palette, getString(m.label), checked = m.key == cur) { setColorMode(m.key) }
+        }
+        s.show()
+    }
+
+    private fun setColorMode(key: String) {
+        Settings.p(this).edit().putString("color_mode", key).apply()
+        val m = ColorModes.byKey(key)
+        if (!effectsReady) {
+            if (m.key == "normal") return
+            // The effects pipeline must exist before prepare(): rebuild once at the same position.
+            val pos = player.currentPosition
+            val idx = player.currentMediaItemIndex
+            val playing = player.playWhenReady
+            player.stop()
+            player.setVideoEffects(m.effects())
+            effectsReady = true
+            player.seekTo(idx, pos)
+            player.prepare()
+            player.playWhenReady = playing
+        } else {
+            player.setVideoEffects(m.effects())
+        }
+        flash(R.drawable.ic_palette, getString(m.label))
+    }
+    private fun closeFromPip() {
+        if (closing) return
+        closing = true
+        saveResume()
+        player.pause()
+        player.stop()
+        finishAndRemoveTask()
     }
 
     private fun saveResume() {

@@ -96,6 +96,7 @@ class ScreensTest {
         a.findViewById<View>(R.id.reel_audio).performClick(); settle()
         a.findViewById<View>(R.id.reel_speed).performClick(); settle()
         a.findViewById<View>(R.id.reel_queue).performClick(); settle()
+        a.findViewById<View>(R.id.reel_color).performClick(); settle()
         c.pause().stop().destroy()
     }
 

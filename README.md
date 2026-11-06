@@ -13,6 +13,10 @@ Research into MX Player and its alternatives (VLC, KMPlayer, XPlayer, Just Playe
 | Losing your place | many players | Auto-resume for every video + a "Continue watching" shelf |
 | Music stops when the screen turns off | video-first players | Real background music service with lock-screen/headset controls and a sleep timer |
 
+## What's new in 1.2.0
+- **Picture modes**: Normal, Auto enhance, Vivid, Sport, Cinema, Night (eye comfort), Warm, Cool, Bright, Black & white — applied live on the GPU (palette button in the player).
+- Closing the picture-in-picture window now stops the video completely (no more sound continuing).
+
 ## What's new in 1.1.0
 - New modern design: Folders / Videos / Music tabs, grid or list view, NEW tags, resume progress on thumbnails.
 - **Fixed seeking**: drag the progress bar and the picture follows your finger; swiping sideways seeks live (1–10 min per swipe, set in Settings). The "buffer line" is gone.

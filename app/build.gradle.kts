@@ -19,8 +19,8 @@ android {
         applicationId = "com.ahmadnayfeh.reel"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
@@ -77,6 +77,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
     implementation("androidx.media3:media3-ui:$media3")
     implementation("androidx.media3:media3-session:$media3")
+    implementation("androidx.media3:media3-effect:$media3")
     // Software audio decoders (AC3, E-AC3, DTS, TrueHD, ...) — the codecs MX Player dropped.
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1")
     implementation("androidx.appcompat:appcompat:1.7.1")
