@@ -1,0 +1,36 @@
+<resources>
+    <string name="tab_videos">الفيديو</string>
+    <string name="tab_music">الموسيقى</string>
+    <string name="search">بحث</string>
+    <string name="sort">ترتيب</string>
+    <string name="open_url">تشغيل رابط من الإنترنت</string>
+    <string name="play">تشغيل</string>
+    <string name="cancel">إلغاء</string>
+    <string name="continue_watching">تابع المشاهدة</string>
+    <string name="n_videos">%d فيديو</string>
+    <string name="n_songs">%d مقطع</string>
+    <string name="grant_access">يحتاج Reel إذنًا لعرض الفيديو والموسيقى في جوالك.\n\nاضغط للسماح.</string>
+    <string name="no_media">لا يوجد شيء هنا بعد.</string>
+    <string name="sort_name">الاسم</string>
+    <string name="sort_date">الأحدث أولًا</string>
+    <string name="sort_size">الأكبر أولًا</string>
+    <string name="sort_duration">الأطول أولًا</string>
+    <string name="now_playing">يُشغَّل الآن</string>
+    <string name="sleep_timer">مؤقت النوم</string>
+    <string name="sleep_off">إيقاف</string>
+    <string name="sleep_in">ستتوقف الموسيقى بعد %d دقيقة</string>
+    <string name="sleep_cancelled">أُلغي مؤقت النوم</string>
+    <string name="minutes">%d دقيقة</string>
+    <string name="end_of_track">نهاية المقطع الحالي</string>
+    <string name="load_subtitle">تحميل ملف ترجمة</string>
+    <string name="subtitle_added">أُضيفت الترجمة</string>
+    <string name="share">مشاركة</string>
+    <string name="fit">ملاءمة</string>
+    <string name="stretch">تمديد</string>
+    <string name="crop">قص</string>
+    <string name="locked">الشاشة مقفلة — اضغط القفل للفتح</string>
+    <string name="brightness">السطوع %d%%</string>
+    <string name="volume">الصوت %d%%</string>
+    <string name="boost">تضخيم %d%%</string>
+    <string name="cant_play">تعذّر تشغيل الملف: %s</string>
+</resources>

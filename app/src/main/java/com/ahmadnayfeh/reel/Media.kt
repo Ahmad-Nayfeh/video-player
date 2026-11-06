@@ -1,0 +1,152 @@
+package com.ahmadnayfeh.reel
+
+import android.content.ContentUris
+import android.content.Context
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.text.format.Formatter
+import android.util.LruCache
+import android.util.Size
+import android.widget.ImageView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.Executors
+
+data class Video(
+    val id: Long, val uri: Uri, val name: String, val duration: Long,
+    val size: Long, val date: Long, val folder: String, val folderId: String,
+)
+
+data class Song(
+    val id: Long, val uri: Uri, val title: String, val artist: String,
+    val album: String, val duration: Long, val size: Long, val date: Long,
+)
+
+object MediaRepo {
+    fun videos(ctx: Context): List<Video> {
+        val out = ArrayList<Video>()
+        val coll = if (Build.VERSION.SDK_INT >= 29) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        val proj = arrayOf(
+            MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.DURATION,
+            MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DATE_ADDED,
+            MediaStore.Video.Media.BUCKET_DISPLAY_NAME, MediaStore.Video.Media.BUCKET_ID,
+        )
+        runCatching {
+            ctx.contentResolver.query(coll, proj, null, null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getLong(0)
+                    out += Video(
+                        id, ContentUris.withAppendedId(coll, id), c.getString(1) ?: "Video",
+                        c.getLong(2), c.getLong(3), c.getLong(4),
+                        c.getString(5) ?: "Internal storage", c.getString(6) ?: "0",
+                    )
+                }
+            }
+        }
+        return out
+    }
+
+    fun songs(ctx: Context): List<Song> {
+        val out = ArrayList<Song>()
+        val coll = if (Build.VERSION.SDK_INT >= 29) MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val proj = arrayOf(
+            MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.DATE_ADDED,
+        )
+        runCatching {
+            ctx.contentResolver.query(coll, proj, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getLong(0)
+                    val artist = c.getString(2)?.takeUnless { it == "<unknown>" } ?: ""
+                    out += Song(
+                        id, ContentUris.withAppendedId(coll, id), c.getString(1) ?: "Track", artist,
+                        c.getString(3) ?: "", c.getLong(4), c.getLong(5), c.getLong(6),
+                    )
+                }
+            }
+        }
+        return out
+    }
+}
+
+fun fmtTime(ms: Long): String {
+    if (ms <= 0) return "0:00"
+    val s = ms / 1000
+    val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
+}
+
+fun fmtSize(ctx: Context, b: Long): String = Formatter.formatShortFileSize(ctx, b)
+
+fun Context.prefs() = getSharedPreferences("reel", Context.MODE_PRIVATE)
+
+/** Remembers where you stopped in every video. */
+object Resume {
+    fun get(ctx: Context, key: String): Long = ctx.prefs().getLong("pos:$key", 0L)
+
+    fun save(ctx: Context, key: String, pos: Long, dur: Long) {
+        val e = ctx.prefs().edit()
+        if (dur <= 0 || pos < 5_000 || dur - pos < 15_000) {
+            e.remove("pos:$key").remove("dur:$key").remove("t:$key")
+        } else {
+            e.putLong("pos:$key", pos).putLong("dur:$key", dur).putLong("t:$key", System.currentTimeMillis())
+        }
+        e.apply()
+    }
+
+    fun clear(ctx: Context, key: String) = save(ctx, key, 0, 0)
+
+    /** 0..1000, or -1 when never started. */
+    fun progress(ctx: Context, key: String, dur: Long): Int {
+        val p = get(ctx, key)
+        val d = if (dur > 0) dur else ctx.prefs().getLong("dur:$key", 0L)
+        return if (p <= 0 || d <= 0) -1 else (p * 1000 / d).toInt().coerceIn(0, 1000)
+    }
+
+    fun lastWatched(ctx: Context, key: String): Long = ctx.prefs().getLong("t:$key", 0L)
+}
+
+object Thumbs {
+    private val cache = object : LruCache<String, Bitmap>(32 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+    private val io = Executors.newFixedThreadPool(3).asCoroutineDispatcher()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    fun load(iv: ImageView, uri: Uri, id: Long, video: Boolean, placeholder: Int) {
+        val key = uri.toString()
+        iv.tag = key
+        cache.get(key)?.let { show(iv, it); return }
+        iv.scaleType = ImageView.ScaleType.CENTER
+        iv.setImageResource(placeholder)
+        scope.launch {
+            val bmp = withContext(io) {
+                runCatching {
+                    val cr = iv.context.contentResolver
+                    if (Build.VERSION.SDK_INT >= 29) cr.loadThumbnail(uri, Size(384, 216), null)
+                    else if (video) @Suppress("DEPRECATION")
+                    MediaStore.Video.Thumbnails.getThumbnail(cr, id, MediaStore.Video.Thumbnails.MINI_KIND, null)
+                    else null
+                }.getOrNull()
+            }
+            if (bmp != null) {
+                cache.put(key, bmp)
+                if (iv.tag == key) show(iv, bmp)
+            }
+        }
+    }
+
+    private fun show(iv: ImageView, b: Bitmap) {
+        iv.scaleType = ImageView.ScaleType.CENTER_CROP
+        iv.setImageBitmap(b)
+    }
+}

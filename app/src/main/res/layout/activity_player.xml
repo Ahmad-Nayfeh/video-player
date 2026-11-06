@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.ahmadnayfeh.reel.GestureLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/gestures"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/pv"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:show_buffering="when_playing" />
+
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="@drawable/top_scrim"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="6dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="22dp">
+
+        <ImageButton android:id="@+id/btnBack" style="@style/OverlayBtn" android:src="@drawable/ic_back_w" android:contentDescription="@string/back" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <ImageButton android:id="@+id/btnSub" style="@style/OverlayBtn" android:src="@drawable/ic_subtitle_w" android:contentDescription="@string/load_subtitle" />
+        <ImageButton android:id="@+id/btnAspect" style="@style/OverlayBtn" android:src="@drawable/ic_aspect_w" android:contentDescription="@string/aspect" />
+        <ImageButton android:id="@+id/btnRotate" style="@style/OverlayBtn" android:src="@drawable/ic_rotate_w" android:contentDescription="@string/rotate" />
+        <ImageButton android:id="@+id/btnPip" style="@style/OverlayBtn" android:src="@drawable/ic_pip_w" android:contentDescription="@string/pip" />
+        <ImageButton android:id="@+id/btnLock" style="@style/OverlayBtn" android:src="@drawable/ic_lock_w" android:contentDescription="@string/lock" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/info_bg"
+        android:gravity="center"
+        android:paddingStart="22dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="22dp"
+        android:paddingBottom="12dp"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/btnUnlock"
+        style="@style/OverlayBtn"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center_vertical|start"
+        android:layout_marginStart="24dp"
+        android:background="@drawable/info_bg"
+        android:contentDescription="@string/lock"
+        android:src="@drawable/ic_lock_w"
+        android:visibility="gone" />
+</com.ahmadnayfeh.reel.GestureLayout>

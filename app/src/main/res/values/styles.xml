@@ -1,0 +1,9 @@
+<resources>
+    <style name="OverlayBtn">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+    </style>
+</resources>
