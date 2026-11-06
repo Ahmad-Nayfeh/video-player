@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="5dp"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <com.ahmadnayfeh.reel.RatioFrame
+        android:id="@+id/thumbBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/thumb_bg">
+
+        <ImageView android:id="@+id/thumb" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" />
+
+        <TextView android:id="@+id/badge" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end" android:layout_margin="7dp" android:background="@drawable/badge_bg"
+            android:paddingStart="5dp" android:paddingEnd="5dp" android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold" />
+
+        <TextView android:id="@+id/newTag" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="top|start" android:layout_margin="7dp" android:background="@drawable/new_bg"
+            android:paddingStart="5dp" android:paddingEnd="5dp" android:text="@string/new_tag" android:textColor="@color/on_accent"
+            android:textSize="10sp" android:textStyle="bold" android:visibility="gone" />
+
+        <ProgressBar android:id="@+id/progress" style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent" android:layout_height="3dp" android:layout_gravity="bottom"
+            android:max="1000" android:progressBackgroundTint="#55FFFFFF" android:progressTint="@color/accent" android:visibility="gone" />
+
+        <ImageView android:id="@+id/check" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:background="@drawable/sel_overlay" android:padding="30dp" android:src="@drawable/ic_check"
+            android:tint="@color/accent" android:visibility="gone" android:importantForAccessibility="no" />
+    </com.ahmadnayfeh.reel.RatioFrame>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:gravity="center_vertical" android:orientation="horizontal">
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:ellipsize="end" android:maxLines="1" android:textColor="@color/ink" android:textSize="14.5sp" android:textStyle="bold" />
+            <TextView android:id="@+id/sub" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:ellipsize="end" android:maxLines="1" android:textColor="@color/muted" android:textSize="12sp" />
+        </LinearLayout>
+
+        <ImageButton android:id="@+id/more" android:layout_width="32dp" android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/more"
+            android:src="@drawable/ic_more" android:tint="@color/muted" />
+    </LinearLayout>
+</LinearLayout>

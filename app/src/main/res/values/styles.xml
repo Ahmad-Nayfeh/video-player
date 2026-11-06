@@ -1,9 +1,23 @@
 <resources>
+    <dimen name="exo_styled_progress_margin_bottom">0dp</dimen>
     <style name="OverlayBtn">
         <item name="android:layout_width">44dp</item>
         <item name="android:layout_height">44dp</item>
         <item name="android:padding">10dp</item>
         <item name="android:scaleType">fitCenter</item>
         <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:tint">@android:color/white</item>
+    </style>
+    <style name="CtlBtn" parent="OverlayBtn">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:padding">12dp</item>
+    </style>
+    <style name="BigBtn" parent="OverlayBtn">
+        <item name="android:layout_width">60dp</item>
+        <item name="android:layout_height">60dp</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:layout_marginStart">14dp</item>
+        <item name="android:layout_marginEnd">14dp</item>
     </style>
 </resources>

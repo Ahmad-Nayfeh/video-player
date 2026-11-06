@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory app:title="@string/pref_cat_look" app:iconSpaceReserved="false">
+        <ListPreference app:key="theme" app:title="@string/pref_theme" app:defaultValue="dark" app:entries="@array/theme_names" app:entryValues="@array/theme_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="show_new" app:title="@string/pref_show_new" app:summary="@string/pref_show_new_sum" app:defaultValue="true" app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+    <PreferenceCategory app:title="@string/pref_cat_playback" app:iconSpaceReserved="false">
+        <SwitchPreferenceCompat app:key="resume" app:title="@string/pref_resume" app:summary="@string/pref_resume_sum" app:defaultValue="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="auto_next" app:title="@string/pref_auto_next" app:summary="@string/pref_auto_next_sum" app:defaultValue="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="bg_play" app:title="@string/pref_bg_play" app:summary="@string/pref_bg_play_sum" app:defaultValue="true" app:iconSpaceReserved="false" />
+        <ListPreference app:key="orientation" app:title="@string/pref_orientation" app:defaultValue="video" app:entries="@array/orient_names" app:entryValues="@array/orient_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
+        <ListPreference app:key="lock_controls" app:title="@string/lock_controls" app:defaultValue="full" app:entries="@array/lock_names" app:entryValues="@array/lock_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="sw_audio" app:title="@string/pref_sw_audio" app:summary="@string/pref_sw_audio_sum" app:defaultValue="false" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="keep_brightness" app:title="@string/pref_keep_brightness" app:defaultValue="false" app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+    <PreferenceCategory app:title="@string/pref_cat_gestures" app:iconSpaceReserved="false">
+        <SwitchPreferenceCompat app:key="g_seek" app:title="@string/pref_g_seek" app:defaultValue="true" app:iconSpaceReserved="false" />
+        <ListPreference app:key="seek_speed" app:title="@string/pref_seek_speed" app:defaultValue="120" app:entries="@array/seek_names" app:entryValues="@array/seek_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="g_bright" app:title="@string/pref_g_bright" app:defaultValue="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="g_volume" app:title="@string/pref_g_volume" app:defaultValue="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="g_double" app:title="@string/pref_g_double" app:defaultValue="true" app:iconSpaceReserved="false" />
+        <ListPreference app:key="double_tap" app:title="@string/pref_double_tap" app:defaultValue="10" app:entries="@array/tap_names" app:entryValues="@array/tap_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="g_pinch" app:title="@string/pref_g_pinch" app:defaultValue="true" app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+    <PreferenceCategory app:title="@string/pref_cat_subs" app:iconSpaceReserved="false">
+        <ListPreference app:key="sub_size" app:title="@string/pref_sub_size" app:defaultValue="1.0" app:entries="@array/subsize_names" app:entryValues="@array/subsize_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
+        <ListPreference app:key="sub_color" app:title="@string/pref_sub_color" app:defaultValue="#FFFFFF" app:entries="@array/subcolor_names" app:entryValues="@array/subcolor_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat app:key="sub_bg" app:title="@string/pref_sub_bg" app:defaultValue="false" app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+</PreferenceScreen>

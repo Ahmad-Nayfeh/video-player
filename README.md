@@ -13,12 +13,25 @@ Research into MX Player and its alternatives (VLC, KMPlayer, XPlayer, Just Playe
 | Losing your place | many players | Auto-resume for every video + a "Continue watching" shelf |
 | Music stops when the screen turns off | video-first players | Real background music service with lock-screen/headset controls and a sleep timer |
 
+## What's new in 1.1.0
+- New modern design: Folders / Videos / Music tabs, grid or list view, NEW tags, resume progress on thumbnails.
+- **Fixed seeking**: drag the progress bar and the picture follows your finger; swiping sideways seeks live (1–10 min per swipe, set in Settings). The "buffer line" is gone.
+- **File management**: long-press to multi-select → delete, rename, move to folder, share, properties.
+- **Screen off keeps playing**: the sound continues in the background with a lock-screen widget showing a frame of the video.
+- **Lock-screen controls**: "Full" or "Play / pause only" so nothing gets skipped by accident.
+- Player menus like MX Player: audio tracks, subtitle tracks, load subtitle file, subtitle size/color/background, speed 0.25–4×, sleep timer, repeat, playlist, aspect, rotation, PiP, file info.
+- Full Settings screen (theme incl. AMOLED black, gestures on/off, seek distance, double-tap step, orientation, resume, auto-next…).
+- "Continue watching" folder removed — each video remembers its own position.
+
 ## Features
 **Video:** hardware decoding with automatic software fallback · resume where you left off · swipe left = brightness, right = volume (up to 200% boost), horizontal = seek · double-tap sides ±10 s, middle = pause · pinch to zoom · Fit / Crop / Stretch · screen lock · picture-in-picture · auto-rotate to the video's shape · playback speed, audio track and subtitle track menus · load external .srt / .ass / .vtt subtitles · next/previous within a folder · open videos from any app · network streams (http, HLS m3u8).
 
 **Music:** all songs, search by title/artist/album · background playback with notification controls · shuffle & repeat · sleep timer (15–90 min or end of track).
 
 **Library:** folders, sorting (name, newest, largest, longest), search, long-press to share.
+
+## Tests
+`./gradlew testDebugUnitTest` opens every screen under Robolectric and saves screenshots to `app/build/shots/`.
 
 ## Build
 ```

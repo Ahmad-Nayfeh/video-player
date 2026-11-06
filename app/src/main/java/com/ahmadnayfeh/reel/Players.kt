@@ -15,7 +15,10 @@ object Players {
      */
     fun build(ctx: Context, music: Boolean): ExoPlayer {
         val renderers = DefaultRenderersFactory(ctx)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setExtensionRendererMode(
+                if (Settings.softwareAudio(ctx)) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+            )
             .setEnableDecoderFallback(true)
         val extractors = DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)
         val attrs = AudioAttributes.Builder()
@@ -26,8 +29,8 @@ object Players {
             .setMediaSourceFactory(DefaultMediaSourceFactory(ctx, extractors))
             .setAudioAttributes(attrs, true)
             .setHandleAudioBecomingNoisy(true)
-            .setSeekBackIncrementMs(10_000)
-            .setSeekForwardIncrementMs(10_000)
+            .setSeekBackIncrementMs(Settings.doubleTapMs(ctx))
+            .setSeekForwardIncrementMs(Settings.doubleTapMs(ctx))
             .build()
     }
 }

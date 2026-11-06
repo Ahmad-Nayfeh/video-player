@@ -38,6 +38,23 @@ class PlaybackService : MediaSessionService() {
             }
         }
 
+        /** What the lock-screen / notification widget may do. "Simple" = play/pause only, no seeking or skipping. */
+        fun widgetCommands(ctx: android.content.Context): Player.Commands {
+            val b = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+            if (Settings.lockSimple(ctx)) b.removeAll(
+                Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM, Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, Player.COMMAND_SEEK_BACK, Player.COMMAND_SEEK_FORWARD,
+                Player.COMMAND_SEEK_TO_MEDIA_ITEM,
+            )
+            return b.build()
+        }
+
+        fun applyWidgetCommands(ctx: android.content.Context) {
+            val s = instance?.session ?: return
+            val info = s.mediaNotificationControllerInfo ?: return
+            s.setAvailableCommands(info, MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS, widgetCommands(ctx))
+        }
+
         private val endOfTrack = object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
@@ -56,6 +73,9 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         instance = this
         val p = Players.build(this, music = true)
+        // Audio only: videos sent here for background play skip video decoding entirely.
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true).build()
         player = p
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, NowPlayingActivity::class.java),
@@ -64,6 +84,14 @@ class PlaybackService : MediaSessionService() {
         session = MediaSession.Builder(this, p)
             .setSessionActivity(open)
             .setCallback(object : MediaSession.Callback {
+                override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+                    if (session.isMediaNotificationController(controller)) {
+                        return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                            .setAvailablePlayerCommands(widgetCommands(this@PlaybackService)).build()
+                    }
+                    return super.onConnect(session, controller)
+                }
+
                 override fun onAddMediaItems(
                     mediaSession: MediaSession,
                     controller: MediaSession.ControllerInfo,

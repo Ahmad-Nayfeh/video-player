@@ -2,16 +2,44 @@
     <style name="Theme.Reel" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/accent</item>
         <item name="colorOnPrimary">@color/on_accent</item>
+        <item name="colorPrimaryContainer">@color/accent_soft</item>
+        <item name="colorOnPrimaryContainer">@color/accent</item>
         <item name="colorSecondary">@color/accent</item>
+        <item name="colorSecondaryContainer">@color/accent_soft</item>
+        <item name="colorOnSecondaryContainer">@color/accent</item>
         <item name="colorSurface">@color/bg</item>
         <item name="colorOnSurface">@color/ink</item>
+        <item name="colorOnSurfaceVariant">@color/muted</item>
         <item name="colorSurfaceContainer">@color/surface</item>
+        <item name="colorSurfaceContainerLow">@color/surface</item>
+        <item name="colorSurfaceContainerHigh">@color/surface2</item>
+        <item name="colorSurfaceContainerHighest">@color/surface2</item>
+        <item name="colorOutline">@color/line</item>
+        <item name="colorOutlineVariant">@color/line</item>
         <item name="android:colorBackground">@color/bg</item>
         <item name="android:windowBackground">@color/bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="windowActionModeOverlay">true</item>
+        <item name="actionModeBackground">@color/surface2</item>
+        <item name="actionModeCloseDrawable">@drawable/ic_close</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Reel.Sheet</item>
+    </style>
+    <style name="Theme.Reel.Amoled">
+        <item name="colorSurface">@android:color/black</item>
+        <item name="android:colorBackground">@android:color/black</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="colorSurfaceContainer">#0E0F13</item>
     </style>
     <style name="Theme.Reel.Player">
         <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <style name="ThemeOverlay.Reel.Sheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Reel.SheetStyle</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+    </style>
+    <style name="Reel.SheetStyle" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@color/surface</item>
+        <item name="android:maxWidth">640dp</item>
     </style>
 </resources>

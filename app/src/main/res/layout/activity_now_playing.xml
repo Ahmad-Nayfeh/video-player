@@ -6,71 +6,45 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:gravity="center_vertical"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp">
-
-        <ImageButton android:id="@+id/btnBack" style="@style/OverlayBtn" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/ic_back" android:contentDescription="@string/back" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="@string/now_playing"
-            android:textColor="@color/muted"
-            android:textSize="15sp" />
-
-        <ImageButton android:id="@+id/btnSleep" style="@style/OverlayBtn" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/ic_timer" android:contentDescription="@string/sleep_timer" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="64dp" android:gravity="center_vertical"
+        android:paddingStart="6dp" android:paddingEnd="6dp">
+        <ImageButton android:id="@+id/btnBack" style="@style/CtlBtn" android:tint="@color/ink" android:rotation="-90" android:src="@drawable/ic_back" android:contentDescription="@string/back" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center"
+            android:text="@string/now_playing" android:textColor="@color/muted" android:textSize="14sp" />
+        <ImageButton android:id="@+id/btnLockCtl" style="@style/CtlBtn" android:tint="@color/ink" android:src="@drawable/ic_lock" android:contentDescription="@string/lock_controls" />
+        <ImageButton android:id="@+id/btnSleep" style="@style/CtlBtn" android:tint="@color/ink" android:src="@drawable/ic_timer" android:contentDescription="@string/sleep_timer" />
     </LinearLayout>
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/pv"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginStart="28dp"
-        android:layout_marginEnd="28dp"
-        app:artwork_display_mode="fit"
-        app:default_artwork="@drawable/art_placeholder"
-        app:show_timeout="0"
-        app:hide_on_touch="false"
-        app:use_controller="false" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:padding="28dp">
+        <com.ahmadnayfeh.reel.SquareFrame
+            android:id="@+id/artBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/card_bg"
+            android:elevation="8dp">
+            <ImageView android:id="@+id/art" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:scaleType="centerCrop" android:importantForAccessibility="no" />
+        </com.ahmadnayfeh.reel.SquareFrame>
+    </FrameLayout>
 
-    <TextView
-        android:id="@+id/songTitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:ellipsize="end"
-        android:gravity="center"
-        android:maxLines="2"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:textColor="@color/ink"
-        android:textSize="22sp"
-        android:textStyle="bold" />
+    <TextView android:id="@+id/songTitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:ellipsize="end" android:maxLines="1" android:paddingStart="28dp" android:paddingEnd="28dp"
+        android:textColor="@color/ink" android:textSize="24sp" android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/songArtist"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:ellipsize="end"
-        android:gravity="center"
-        android:maxLines="1"
-        android:textColor="@color/muted"
-        android:textSize="15sp" />
+    <TextView android:id="@+id/songArtist" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" android:ellipsize="end" android:maxLines="1" android:paddingStart="28dp"
+        android:paddingEnd="28dp" android:textColor="@color/muted" android:textSize="15sp" />
 
     <androidx.media3.ui.PlayerControlView
         android:id="@+id/controls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="20dp"
         app:show_timeout="0"
+        app:animation_enabled="false"
         app:show_shuffle_button="true"
-        app:repeat_toggle_modes="one|all" />
+        app:repeat_toggle_modes="one|all"
+        app:controller_layout_id="@layout/reel_music_controls" />
 </LinearLayout>

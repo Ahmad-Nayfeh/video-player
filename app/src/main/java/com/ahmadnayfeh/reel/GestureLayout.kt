@@ -31,6 +31,13 @@ class GestureLayout(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx, attrs
     var listener: Listener? = null
     var locked = false
     var gesturesEnabled = true
+    var allowSeek = true
+    var allowBright = true
+    var allowVolume = true
+    var allowDouble = true
+    var allowPinch = true
+    /** Returns true when a touch at (x, y) lands on visible controls (time bar, buttons) and must not become a gesture. */
+    var blocker: ((Float, Float) -> Boolean)? = null
 
     private var mode = NONE
     private var downX = 0f
@@ -41,14 +48,14 @@ class GestureLayout(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx, attrs
 
     private val tapDetector = GestureDetector(ctx, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (!locked && mode == NONE) listener?.onDoubleTapAt(e.x, width)
+            if (!locked && allowDouble && mode == NONE && blocker?.invoke(e.x, e.y) != true) listener?.onDoubleTapAt(e.x, width)
             return true
         }
     })
 
     private val scaleDetector = ScaleGestureDetector(ctx, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            if (locked) return false
+            if (locked || !allowPinch) return false
             if (mode != NONE && mode != PINCH) return false
             pinch = 1f
             start(PINCH)
@@ -68,14 +75,14 @@ class GestureLayout(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx, attrs
         scaleDetector.onTouchEvent(ev)
         if (locked) {
             if (ev.actionMasked == MotionEvent.ACTION_UP) listener?.onLockedTap()
-            // Controls are disabled while locked; only the unlock button can still receive the touch.
+            // Controls are hidden while locked; only the unlock button can still receive the touch.
             return super.dispatchTouchEvent(ev)
         }
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x; downY = ev.y; mode = NONE
                 val edge = height * 0.07f // leave the system gesture areas alone
-                ignore = ev.y < edge || ev.y > height - edge
+                ignore = ev.y < edge || ev.y > height - edge || blocker?.invoke(ev.x, ev.y) == true
             }
             MotionEvent.ACTION_MOVE -> {
                 if (mode == NONE && !ignore && ev.pointerCount == 1) {
@@ -83,12 +90,16 @@ class GestureLayout(ctx: Context, attrs: AttributeSet?) : FrameLayout(ctx, attrs
                     val dy = ev.y - downY
                     if (abs(dx) > slop || abs(dy) > slop) {
                         val m = when {
-                            abs(dx) > abs(dy) -> SEEK
-                            downX < width / 2f -> BRIGHT
-                            else -> VOLUME
+                            abs(dx) > abs(dy) -> if (allowSeek) SEEK else NONE
+                            downX < width / 2f -> if (allowBright) BRIGHT else NONE
+                            else -> if (allowVolume) VOLUME else NONE
                         }
-                        downX = ev.x; downY = ev.y
-                        start(m)
+                        if (m == NONE) {
+                            ignore = true
+                        } else {
+                            downX = ev.x; downY = ev.y
+                            start(m)
+                        }
                     }
                 } else if (mode == SEEK) {
                     listener?.onGestureMove(SEEK, (ev.x - downX) / width)

@@ -9,92 +9,109 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
-
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/tabs"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@android:color/transparent"
-        app:tabIndicatorFullWidth="false" />
+        android:layout_height="64dp"
+        android:paddingStart="4dp"
+        app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall"
+        app:subtitleTextColor="@color/muted" />
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/list"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/refresh"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingTop="6dp"
-            android:paddingBottom="12dp" />
+            android:layout_height="match_parent">
 
-        <TextView
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="16dp" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <LinearLayout
             android:id="@+id/empty"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center"
+            android:orientation="vertical"
             android:padding="32dp"
-            android:textColor="@color/muted"
-            android:textSize="16sp"
-            android:visibility="gone" />
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/emptyIcon"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:src="@drawable/ic_video_lib"
+                app:tint="@color/muted" />
+
+            <TextView
+                android:id="@+id/emptyText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:textColor="@color/muted"
+                android:textSize="16sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/emptyBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/allow" />
+        </LinearLayout>
     </FrameLayout>
 
     <LinearLayout
         android:id="@+id/mini"
         android:layout_width="match_parent"
         android:layout_height="64dp"
-        android:layout_margin="10dp"
-        android:background="@drawable/mini_bg"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="6dp"
+        android:background="@drawable/card_bg"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="12dp"
+        android:paddingStart="8dp"
         android:paddingEnd="6dp"
         android:visibility="gone">
 
         <ImageView
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:padding="6dp"
-            android:src="@drawable/ic_music"
-            app:tint="@color/accent" />
+            android:id="@+id/miniArt"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/thumb_bg"
+            android:importantForAccessibility="no" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="12dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/miniTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/ink"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+            <TextView android:id="@+id/miniTitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:ellipsize="end" android:maxLines="1" android:textColor="@color/ink" android:textSize="15sp" android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/miniSub"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/muted"
-                android:textSize="13sp" />
+            <TextView android:id="@+id/miniSub" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:ellipsize="end" android:maxLines="1" android:textColor="@color/muted" android:textSize="13sp" />
         </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/miniPlay"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/play"
-            android:src="@drawable/ic_play" />
+        <ImageButton android:id="@+id/miniPlay" style="@style/CtlBtn" android:tint="@color/ink" android:contentDescription="@string/play" android:src="@drawable/ic_play" />
+        <ImageButton android:id="@+id/miniNext" style="@style/CtlBtn" android:tint="@color/ink" android:contentDescription="@string/next" android:src="@drawable/ic_next" />
     </LinearLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        app:labelVisibilityMode="labeled"
+        app:menu="@menu/nav" />
 </LinearLayout>

@@ -4,9 +4,13 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.Menu
@@ -14,6 +18,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.ProgressBar
@@ -22,6 +27,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -32,11 +38,12 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.tabs.TabLayout
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -44,106 +51,144 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
+    data class Folder(val id: String, val name: String, val videos: List<Video>) {
+        val size get() = videos.sumOf { it.size }
+        val latest get() = videos.maxOfOrNull { it.date } ?: 0L
+        val cover get() = videos.maxByOrNull { it.date }
+    }
+
     private sealed class Row {
-        data class Folder(val id: String, val name: String, val count: Int, val cover: Video?, val special: Boolean = false) : Row()
-        data class VideoRow(val v: Video) : Row()
-        data class SongRow(val s: Song) : Row()
+        data class F(val f: Folder) : Row()
+        data class V(val v: Video) : Row()
+        data class S(val s: Song) : Row()
     }
 
     private companion object {
-        const val CONTINUE = "__continue__"
+        const val FOLDERS = 0; const val VIDEOS = 1; const val MUSIC = 2
         const val SORT_NAME = 0; const val SORT_DATE = 1; const val SORT_SIZE = 2; const val SORT_DURATION = 3
     }
 
     private lateinit var toolbar: MaterialToolbar
-    private lateinit var tabs: TabLayout
     private lateinit var list: RecyclerView
-    private lateinit var empty: TextView
+    private lateinit var refresh: SwipeRefreshLayout
+    private lateinit var empty: View
+    private lateinit var emptyText: TextView
+    private lateinit var emptyIcon: ImageView
+    private lateinit var emptyBtn: View
+    private lateinit var nav: BottomNavigationView
     private lateinit var mini: View
     private lateinit var miniTitle: TextView
     private lateinit var miniSub: TextView
     private lateinit var miniPlay: ImageButton
+    private lateinit var miniArt: ImageView
+    private lateinit var grid: GridLayoutManager
 
     private var videos: List<Video> = emptyList()
     private var songs: List<Song> = emptyList()
     private var rows: List<Row> = emptyList()
-    private var tab = 0
+    private var tab = FOLDERS
     private var folder: String? = null
     private var query = ""
-    private var sort = SORT_NAME
-    private var searchItem: MenuItem? = null
+    private var menu: Menu? = null
+
+    private val selected = LinkedHashSet<String>()
+    private var actionMode: ActionMode? = null
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
-
     private val adapter = Adapter()
+    private val fileOps by lazy { FileOps(this) { endSelection(); scan() } }
+    private val handler = Handler(Looper.getMainLooper())
+    private val rescan = Runnable { scan() }
+    private val observer = object : ContentObserver(handler) {
+        override fun onChange(selfChange: Boolean) { handler.removeCallbacks(rescan); handler.postDelayed(rescan, 800) }
+    }
 
     private val permissions: Array<String>
-        get() = if (Build.VERSION.SDK_INT >= 33) arrayOf(
-            Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS,
-        ) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-
+        get() = when {
+            Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+            Build.VERSION.SDK_INT >= 30 -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
     private val askPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { scan() }
 
     private val back = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() { openFolder(null) }
     }
 
+    private fun sortKey() = "sort_$tab"
+    private fun sort() = Settings.getInt(this, sortKey(), if (tab == MUSIC) SORT_NAME else SORT_DATE)
+    private fun desc() = Settings.getBool(this, sortKey() + "_desc", tab != MUSIC)
+    private fun gridMode() = Settings.getBool(this, "grid_$tab", tab == FOLDERS)
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        Settings.applyTheme(this)
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, ins ->
             val i = ins.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(i.left, i.top, i.right, i.bottom)
+            v.setPadding(i.left, i.top, i.right, 0)
+            nav.setPadding(0, 0, 0, i.bottom)
             ins
         }
         toolbar = findViewById(R.id.toolbar)
-        tabs = findViewById(R.id.tabs)
         list = findViewById(R.id.list)
+        refresh = findViewById(R.id.refresh)
         empty = findViewById(R.id.empty)
+        emptyText = findViewById(R.id.emptyText)
+        emptyIcon = findViewById(R.id.emptyIcon)
+        emptyBtn = findViewById(R.id.emptyBtn)
+        nav = findViewById(R.id.nav)
         mini = findViewById(R.id.mini)
         miniTitle = findViewById(R.id.miniTitle)
         miniSub = findViewById(R.id.miniSub)
         miniPlay = findViewById(R.id.miniPlay)
+        miniArt = findViewById(R.id.miniArt)
+        miniArt.clipToOutline = true
 
         setSupportActionBar(toolbar)
         toolbar.setNavigationOnClickListener { openFolder(null) }
-        sort = prefs().getInt("sort", SORT_NAME)
+        refresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.accent))
+        refresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.surface2))
+        refresh.setOnRefreshListener { scan() }
 
-        tabs.addTab(tabs.newTab().setText(R.string.tab_videos))
-        tabs.addTab(tabs.newTab().setText(R.string.tab_music))
-        tab = prefs().getInt("tab", 0)
-        tabs.getTabAt(tab)?.select()
-        tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(t: TabLayout.Tab) {
-                tab = t.position
-                prefs().edit().putInt("tab", tab).apply()
-                folder = null
-                render()
-            }
-            override fun onTabUnselected(t: TabLayout.Tab) {}
-            override fun onTabReselected(t: TabLayout.Tab) { list.smoothScrollToPosition(0) }
-        })
-
-        list.layoutManager = LinearLayoutManager(this)
+        grid = GridLayoutManager(this, 1)
+        list.layoutManager = grid
         list.adapter = adapter
-        empty.setOnClickListener { if (!hasPermission()) askPermission.launch(permissions) }
-        onBackPressedDispatcher.addCallback(this, back)
+        list.itemAnimator = null
 
-        mini.setOnClickListener { startActivity(Intent(this, NowPlayingActivity::class.java)) }
-        miniPlay.setOnClickListener {
-            controller?.let { if (it.isPlaying) it.pause() else it.play() }
+        tab = Settings.getInt(this, "tab", FOLDERS)
+        nav.selectedItemId = when (tab) { VIDEOS -> R.id.nav_videos; MUSIC -> R.id.nav_music; else -> R.id.nav_folders }
+        nav.setOnItemSelectedListener { item ->
+            val t = when (item.itemId) { R.id.nav_videos -> VIDEOS; R.id.nav_music -> MUSIC; else -> FOLDERS }
+            if (t != tab) {
+                tab = t; folder = null
+                Settings.putInt(this, "tab", tab)
+                endSelection(); render(); list.scrollToPosition(0)
+            }
+            true
         }
+        nav.setOnItemReselectedListener { if (folder != null) openFolder(null) else list.smoothScrollToPosition(0) }
 
+        emptyBtn.setOnClickListener { askPermission.launch(permissions) }
+        onBackPressedDispatcher.addCallback(this, back)
+        mini.setOnClickListener { startActivity(Intent(this, NowPlayingActivity::class.java)) }
+        miniPlay.setOnClickListener { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
+        findViewById<View>(R.id.miniNext).setOnClickListener { controller?.seekToNext() }
+
+        fileOps // register the result launcher before STARTED
         if (!hasPermission()) askPermission.launch(permissions)
     }
 
     override fun onStart() {
         super.onStart()
         scan()
-        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
-        val f = MediaController.Builder(this, token).buildAsync()
+        runCatching {
+            contentResolver.registerContentObserver(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer)
+            contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
+        }
+        val f = MediaController.Builder(this, SessionToken(this, ComponentName(this, PlaybackService::class.java))).buildAsync()
         controllerFuture = f
         f.addListener({
             controller = runCatching { f.get() }.getOrNull()
@@ -155,6 +200,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        runCatching { contentResolver.unregisterContentObserver(observer) }
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controllerFuture = null
         controller = null
@@ -162,116 +208,121 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hasPermission(): Boolean {
-        val needed = if (Build.VERSION.SDK_INT >= 33)
-            listOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO)
+        val needed = if (Build.VERSION.SDK_INT >= 33) listOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO)
         else listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         return needed.any { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
     }
 
     private fun scan() {
-        if (!hasPermission()) { render(); return }
+        if (!hasPermission()) { refresh.isRefreshing = false; render(); return }
         lifecycleScope.launch {
             val (v, s) = withContext(Dispatchers.IO) { MediaRepo.videos(this@MainActivity) to MediaRepo.songs(this@MainActivity) }
             videos = v; songs = s
+            refresh.isRefreshing = false
             render()
         }
     }
 
-    // ---- building the list ----
+    // ---------------- list building ----------------
 
-    private fun <T> sorted(items: List<T>, name: (T) -> String, date: (T) -> Long, size: (T) -> Long, dur: (T) -> Long): List<T> =
-        when (sort) {
-            SORT_DATE -> items.sortedByDescending(date)
-            SORT_SIZE -> items.sortedByDescending(size)
-            SORT_DURATION -> items.sortedByDescending(dur)
-            else -> items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, name))
+    private fun sortVideos(l: List<Video>): List<Video> {
+        val s = when (sort()) {
+            SORT_DATE -> l.sortedBy { it.date }
+            SORT_SIZE -> l.sortedBy { it.size }
+            SORT_DURATION -> l.sortedBy { it.duration }
+            else -> l.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
         }
+        return if (desc()) s.reversed() else s
+    }
 
-    private fun sortVideos(l: List<Video>) = sorted(l, { it.name }, { it.date }, { it.size }, { it.duration })
-
-    private fun continueList() = videos
-        .filter { Resume.progress(this, it.uri.toString(), it.duration) >= 0 }
-        .sortedByDescending { Resume.lastWatched(this, it.uri.toString()) }
+    private fun folders(): List<Folder> {
+        val f = videos.groupBy { it.folderId }.map { (id, vs) -> Folder(id, vs.first().folder, vs) }
+        val s = when (sort()) {
+            SORT_DATE -> f.sortedBy { it.latest }
+            SORT_SIZE -> f.sortedBy { it.size }
+            SORT_DURATION -> f.sortedBy { it.videos.size }
+            else -> f.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+        }
+        return if (desc()) s.reversed() else s
+    }
 
     private fun render() {
         val q = query.trim()
-        rows = if (tab == 0) {
-            val f = folder
-            when {
-                q.isNotEmpty() -> sortVideos(videos.filter { it.name.contains(q, true) || it.folder.contains(q, true) }).map { Row.VideoRow(it) }
-                f == CONTINUE -> continueList().map { Row.VideoRow(it) }
-                f != null -> sortVideos(videos.filter { it.folderId == f }).map { Row.VideoRow(it) }
-                else -> {
-                    val out = ArrayList<Row>()
-                    val cont = continueList()
-                    if (cont.isNotEmpty()) out += Row.Folder(CONTINUE, getString(R.string.continue_watching), cont.size, cont.first(), true)
-                    val groups = videos.groupBy { it.folderId }.map { (id, vs) ->
-                        Row.Folder(id, vs.first().folder, vs.size, vs.maxByOrNull { it.date })
-                    }
-                    out += sorted(groups, { it.name }, { it.cover?.date ?: 0 }, { it.count.toLong() }, { it.count.toLong() })
-                    out
+        val f = folder
+        rows = when {
+            tab == MUSIC -> {
+                val l = if (q.isEmpty()) songs else songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.album.contains(q, true) }
+                val s = when (sort()) {
+                    SORT_DATE -> l.sortedBy { it.date }; SORT_SIZE -> l.sortedBy { it.size }; SORT_DURATION -> l.sortedBy { it.duration }
+                    else -> l.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
                 }
+                (if (desc()) s.reversed() else s).map { Row.S(it) }
             }
-        } else {
-            val l = if (q.isEmpty()) songs else songs.filter {
-                it.title.contains(q, true) || it.artist.contains(q, true) || it.album.contains(q, true)
-            }
-            sorted(l, { it.title }, { it.date }, { it.size }, { it.duration }).map { Row.SongRow(it) }
+            q.isNotEmpty() -> sortVideos(videos.filter { it.name.contains(q, true) || it.folder.contains(q, true) }).map { Row.V(it) }
+            tab == FOLDERS && f == null -> folders().map { Row.F(it) }
+            tab == FOLDERS -> sortVideos(videos.filter { it.folderId == f }).map { Row.V(it) }
+            else -> sortVideos(videos).map { Row.V(it) }
         }
 
-        val f = folder
-        if (tab == 0 && f != null) {
-            toolbar.title = if (f == CONTINUE) getString(R.string.continue_watching) else videos.firstOrNull { it.folderId == f }?.folder
+        val inFolder = tab == FOLDERS && f != null
+        if (inFolder) {
+            val name = videos.firstOrNull { it.folderId == f }?.folder ?: ""
+            toolbar.title = name
+            toolbar.subtitle = resources.getQuantityString(R.plurals.n_videos, rows.size, rows.size)
             toolbar.setNavigationIcon(R.drawable.ic_back)
         } else {
             toolbar.title = getString(R.string.app_name)
+            toolbar.subtitle = when (tab) {
+                MUSIC -> resources.getQuantityString(R.plurals.n_songs, songs.size, songs.size)
+                VIDEOS -> resources.getQuantityString(R.plurals.n_videos, videos.size, videos.size)
+                else -> if (videos.isEmpty()) null else resources.getQuantityString(R.plurals.n_folders, folders().size, folders().size)
+            }
             toolbar.navigationIcon = null
         }
-        back.isEnabled = tab == 0 && f != null
+        back.isEnabled = inFolder
 
+        val cols = maxOf(2, (resources.configuration.screenWidthDp / 175))
+        grid.spanCount = if (tab != MUSIC && gridMode()) cols else 1
+        menu?.findItem(R.id.view)?.apply {
+            isVisible = tab != MUSIC
+            setIcon(if (gridMode()) R.drawable.ic_list else R.drawable.ic_grid)
+        }
+
+        val perm = hasPermission()
         empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
-        empty.text = getString(if (hasPermission()) R.string.no_media else R.string.grant_access)
+        emptyBtn.visibility = if (perm) View.GONE else View.VISIBLE
+        emptyIcon.setImageResource(if (tab == MUSIC) R.drawable.ic_music else R.drawable.ic_video_lib)
+        emptyText.text = getString(when { !perm -> R.string.grant_access; q.isNotEmpty() -> R.string.no_results; else -> R.string.no_media })
         adapter.notifyDataSetChanged()
     }
 
     private fun openFolder(id: String?) {
+        endSelection()
         folder = id
         render()
         list.scrollToPosition(0)
     }
 
-    // ---- actions ----
+    // ---------------- playback ----------------
 
-    private fun playVideos(list: List<Video>, index: Int) {
-        val i = Intent(this, PlayerActivity::class.java)
-            .putStringArrayListExtra(PlayerActivity.EXTRA_URIS, ArrayList(list.map { it.uri.toString() }))
-            .putStringArrayListExtra(PlayerActivity.EXTRA_TITLES, ArrayList(list.map { it.name.substringBeforeLast('.') }))
-            .putExtra(PlayerActivity.EXTRA_INDEX, index)
-        startActivity(i)
+    private fun playVideos(l: List<Video>, index: Int) {
+        startActivity(Intent(this, PlayerActivity::class.java)
+            .putStringArrayListExtra(PlayerActivity.EXTRA_URIS, ArrayList(l.map { it.key }))
+            .putStringArrayListExtra(PlayerActivity.EXTRA_TITLES, ArrayList(l.map { it.title }))
+            .putExtra(PlayerActivity.EXTRA_INDEX, index))
     }
 
-    private fun playSongs(list: List<Song>, index: Int) {
+    private fun playSongs(l: List<Song>, index: Int, open: Boolean = true) {
         val c = controller ?: return
-        val items = list.map { s ->
-            MediaItem.Builder()
-                .setMediaId(s.uri.toString())
-                .setUri(s.uri)
+        val items = l.map { s ->
+            MediaItem.Builder().setMediaId(s.key).setUri(s.uri)
                 .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(s.uri).build())
-                .setMediaMetadata(
-                    MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album)
-                        .setIsPlayable(true).build()
-                ).build()
+                .setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album).build())
+                .build()
         }
         c.setMediaItems(items, index, 0)
-        c.prepare()
-        c.play()
-        startActivity(Intent(this, NowPlayingActivity::class.java))
-    }
-
-    private fun share(uri: Uri, type: String) {
-        val send = Intent(Intent.ACTION_SEND).setType(type).putExtra(Intent.EXTRA_STREAM, uri)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        startActivity(Intent.createChooser(send, getString(R.string.share)))
+        c.prepare(); c.play()
+        if (open) startActivity(Intent(this, NowPlayingActivity::class.java))
     }
 
     private fun updateMini() {
@@ -282,113 +333,336 @@ class MainActivity : AppCompatActivity() {
         miniTitle.text = m.title ?: ""
         miniSub.text = m.artist ?: ""
         miniPlay.setImageResource(if (c.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+        c.currentMediaItem?.mediaId?.let { Thumbs.load(miniArt, Uri.parse(it), 0, false, R.drawable.ic_music) }
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.main, menu)
-        searchItem = menu.findItem(R.id.search)
-        (searchItem?.actionView as? SearchView)?.apply {
-            queryHint = getString(R.string.search)
+    // ---------------- selection & file actions ----------------
+
+    private fun selectedVideos() = videos.filter { it.key in selected }
+    private fun selectedSongs() = songs.filter { it.key in selected }
+
+    private fun toggle(key: String) {
+        if (!selected.add(key)) selected.remove(key)
+        if (selected.isEmpty()) { endSelection(); return }
+        if (actionMode == null) actionMode = startSupportActionMode(selectionCallback)
+        actionMode?.title = getString(R.string.n_selected, selected.size)
+        actionMode?.invalidate()
+        adapter.notifyDataSetChanged()
+    }
+
+    private fun endSelection() {
+        selected.clear()
+        actionMode?.finish()
+        actionMode = null
+        adapter.notifyDataSetChanged()
+    }
+
+    private val selectionCallback = object : ActionMode.Callback {
+        override fun onCreateActionMode(mode: ActionMode, m: Menu): Boolean { mode.menuInflater.inflate(R.menu.select, m); return true }
+        override fun onPrepareActionMode(mode: ActionMode, m: Menu): Boolean {
+            m.findItem(R.id.sel_rename).isVisible = selected.size == 1
+            m.findItem(R.id.sel_info).isVisible = selected.size == 1
+            m.findItem(R.id.sel_move).isVisible = tab != MUSIC
+            return true
+        }
+        override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+            when (item.itemId) {
+                R.id.sel_all -> {
+                    rows.forEach { r -> when (r) { is Row.V -> selected += r.v.key; is Row.S -> selected += r.s.key; else -> {} } }
+                    mode.title = getString(R.string.n_selected, selected.size); mode.invalidate(); adapter.notifyDataSetChanged()
+                }
+                R.id.sel_share -> shareSelected()
+                R.id.sel_delete -> confirmDelete()
+                R.id.sel_rename -> renameSelected()
+                R.id.sel_move -> moveSelected()
+                R.id.sel_info -> infoSelected()
+            }
+            return true
+        }
+        override fun onDestroyActionMode(mode: ActionMode) {
+            actionMode = null
+            if (selected.isNotEmpty()) { selected.clear(); adapter.notifyDataSetChanged() }
+        }
+    }
+
+    private fun uriList(): ArrayList<Uri> = ArrayList((selectedVideos().map { it.uri }) + selectedSongs().map { it.uri })
+
+    private fun shareSelected() {
+        val uris = uriList()
+        if (uris.isEmpty()) return
+        val type = if (tab == MUSIC) "audio/*" else "video/*"
+        val i = if (uris.size == 1) Intent(Intent.ACTION_SEND).setType(type).putExtra(Intent.EXTRA_STREAM, uris[0])
+        else Intent(Intent.ACTION_SEND_MULTIPLE).setType(type).putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+        startActivity(Intent.createChooser(i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), getString(R.string.share)))
+    }
+
+    private fun confirmDelete() {
+        val v = selectedVideos(); val s = selectedSongs()
+        val n = v.size + s.size
+        val doIt = { fileOps.delete(v.map { it.uri } + s.map { it.uri }, v.map { it.path } + s.map { it.path }) }
+        if (Build.VERSION.SDK_INT >= 30) { doIt(); return } // the system asks for confirmation itself
+        MaterialAlertDialogBuilder(this).setTitle(getString(R.string.delete_q, n))
+            .setPositiveButton(R.string.delete) { _, _ -> doIt() }.setNegativeButton(R.string.cancel, null).show()
+    }
+
+    private fun renameSelected() {
+        val v = selectedVideos().firstOrNull()
+        val s = selectedSongs().firstOrNull()
+        val name = v?.name ?: s?.path?.substringAfterLast('/') ?: return
+        val uri = v?.uri ?: s!!.uri
+        val path = v?.path ?: s?.path
+        val ext = name.substringAfterLast('.', "")
+        val input = EditText(this).apply { setText(name.substringBeforeLast('.')); setSingleLine(); selectAll() }
+        MaterialAlertDialogBuilder(this).setTitle(R.string.rename).setView(padded(input))
+            .setPositiveButton(R.string.save) { _, _ ->
+                val base = input.text.toString().trim().replace("/", "_")
+                if (base.isNotEmpty()) fileOps.rename(uri, path, if (ext.isNotEmpty()) "$base.$ext" else base)
+            }
+            .setNegativeButton(R.string.cancel, null).show()
+        input.requestFocus()
+    }
+
+    private fun moveSelected() {
+        val items = selectedVideos()
+        if (items.isEmpty()) return
+        val targets = videos.map { it.relPath }.filter { it.isNotBlank() }.distinct().sorted()
+        val s = Sheet(this, getString(R.string.move_to))
+        s.row(R.drawable.ic_folder_open, getString(R.string.new_folder)) {
+            val input = EditText(this).apply { hint = getString(R.string.folder_name); setSingleLine() }
+            MaterialAlertDialogBuilder(this).setTitle(R.string.new_folder).setView(padded(input))
+                .setPositiveButton(R.string.move) { _, _ ->
+                    val n = input.text.toString().trim().replace("/", "_")
+                    if (n.isNotEmpty()) fileOps.move(items.map { it.uri to it.path }, "Movies/$n/")
+                }.setNegativeButton(R.string.cancel, null).show()
+        }
+        targets.forEach { t ->
+            s.row(R.drawable.ic_folder, t.trimEnd('/').substringAfterLast('/'), t.trimEnd('/')) {
+                fileOps.move(items.map { it.uri to it.path }, if (t.endsWith("/")) t else "$t/")
+            }
+        }
+        s.show()
+    }
+
+    private fun infoSelected() {
+        val v = selectedVideos().firstOrNull()
+        val sg = selectedSongs().firstOrNull()
+        val s = Sheet(this, getString(R.string.properties))
+        if (v != null) {
+            s.text(getString(R.string.file_name), v.name)
+            s.text(getString(R.string.location), v.path ?: v.relPath)
+            s.text(getString(R.string.size), fmtSize(this, v.size))
+            s.text(getString(R.string.duration), fmtTime(v.duration))
+            if (v.width > 0) s.text(getString(R.string.resolution), "${v.width}×${v.height}  ${v.quality}")
+            s.text(getString(R.string.date_added), DateUtils.formatDateTime(this, v.date * 1000, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_YEAR))
+        } else if (sg != null) {
+            s.text(getString(R.string.title), sg.title)
+            if (sg.artist.isNotBlank()) s.text(getString(R.string.artist), sg.artist)
+            if (sg.album.isNotBlank()) s.text(getString(R.string.album), sg.album)
+            s.text(getString(R.string.location), sg.path ?: "—")
+            s.text(getString(R.string.size), fmtSize(this, sg.size))
+            s.text(getString(R.string.duration), fmtTime(sg.duration))
+        }
+        s.show()
+    }
+
+    private fun itemMenu(r: Row) {
+        when (r) {
+            is Row.V -> {
+                val v = r.v
+                val s = Sheet(this, v.title)
+                s.row(R.drawable.ic_play, getString(R.string.play)) { val l = rows.filterIsInstance<Row.V>().map { it.v }; playVideos(l, l.indexOf(v)) }
+                if (Resume.get(this, v.key) > 0) s.row(R.drawable.ic_refresh, getString(R.string.play_from_start)) { Resume.clear(this, v.key); playVideos(listOf(v), 0) }
+                s.row(R.drawable.ic_headphones, getString(R.string.play_audio_only)) { playAsAudio(v) }
+                s.row(R.drawable.ic_select_all, getString(R.string.select)) { toggle(v.key) }
+                s.row(R.drawable.ic_edit, getString(R.string.rename)) { selected.clear(); selected += v.key; renameSelected(); selected.clear() }
+                s.row(R.drawable.ic_move, getString(R.string.move)) { selected.clear(); selected += v.key; moveSelected(); selected.clear() }
+                s.row(R.drawable.ic_share, getString(R.string.share)) { selected.clear(); selected += v.key; shareSelected(); selected.clear() }
+                s.row(R.drawable.ic_info, getString(R.string.properties)) { selected.clear(); selected += v.key; infoSelected(); selected.clear() }
+                s.row(R.drawable.ic_delete, getString(R.string.delete)) { selected.clear(); selected += v.key; confirmDelete() }
+                s.show()
+            }
+            is Row.S -> {
+                val sg = r.s
+                val s = Sheet(this, sg.title)
+                s.row(R.drawable.ic_play, getString(R.string.play)) { val l = rows.filterIsInstance<Row.S>().map { it.s }; playSongs(l, l.indexOf(sg)) }
+                s.row(R.drawable.ic_queue, getString(R.string.play_next)) { controller?.let { c -> c.addMediaItem(minOf(c.currentMediaItemIndex + 1, c.mediaItemCount), songItem(sg)); if (c.mediaItemCount == 1) { c.prepare(); c.play() } } }
+                s.row(R.drawable.ic_select_all, getString(R.string.select)) { toggle(sg.key) }
+                s.row(R.drawable.ic_edit, getString(R.string.rename)) { selected.clear(); selected += sg.key; renameSelected(); selected.clear() }
+                s.row(R.drawable.ic_share, getString(R.string.share)) { selected.clear(); selected += sg.key; shareSelected(); selected.clear() }
+                s.row(R.drawable.ic_info, getString(R.string.properties)) { selected.clear(); selected += sg.key; infoSelected(); selected.clear() }
+                s.row(R.drawable.ic_delete, getString(R.string.delete)) { selected.clear(); selected += sg.key; confirmDelete() }
+                s.show()
+            }
+            is Row.F -> {
+                val f = r.f
+                val s = Sheet(this, f.name)
+                s.row(R.drawable.ic_play, getString(R.string.play_all)) { playVideos(sortVideos(f.videos), 0) }
+                s.row(R.drawable.ic_headphones, getString(R.string.play_audio_only)) {
+                    val l = sortVideos(f.videos)
+                    controller?.let { c -> c.setMediaItems(l.map { videoAsAudio(it) }); c.prepare(); c.play() }
+                }
+                s.text(getString(R.string.size), fmtSize(this, f.size) + "  ·  " + resources.getQuantityString(R.plurals.n_videos, f.videos.size, f.videos.size))
+                f.cover?.relPath?.let { if (it.isNotBlank()) s.text(getString(R.string.location), it) }
+                s.show()
+            }
+        }
+    }
+
+    private fun songItem(s: Song) = MediaItem.Builder().setMediaId(s.key).setUri(s.uri)
+        .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(s.uri).build())
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album).build()).build()
+
+    private fun videoAsAudio(v: Video) = MediaItem.Builder().setMediaId(v.key).setUri(v.uri)
+        .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(v.uri).build())
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(v.title).setArtist(v.folder).build()).build()
+
+    private fun playAsAudio(v: Video) {
+        val c = controller ?: return
+        c.setMediaItem(videoAsAudio(v), Resume.get(this, v.key)); c.prepare(); c.play()
+        startActivity(Intent(this, NowPlayingActivity::class.java))
+    }
+
+    private fun padded(v: View): View = FrameLayout(this).apply {
+        setPadding(dp(22), dp(10), dp(22), 0); addView(v)
+    }
+
+    // ---------------- menu ----------------
+
+    override fun onCreateOptionsMenu(m: Menu): Boolean {
+        menuInflater.inflate(R.menu.main, m)
+        menu = m
+        (m.findItem(R.id.search).actionView as? SearchView)?.apply {
+            queryHint = getString(R.string.search_hint)
             setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(q: String?) = true
                 override fun onQueryTextChange(q: String?): Boolean { this@MainActivity.query = q.orEmpty(); render(); return true }
             })
         }
+        render()
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.sort -> {
-                val labels = arrayOf(getString(R.string.sort_name), getString(R.string.sort_date), getString(R.string.sort_size), getString(R.string.sort_duration))
-                MaterialAlertDialogBuilder(this).setTitle(R.string.sort)
-                    .setSingleChoiceItems(labels, sort) { d, which ->
-                        sort = which
-                        prefs().edit().putInt("sort", sort).apply()
-                        render(); d.dismiss()
-                    }.show()
-            }
+            R.id.sort -> sortSheet()
+            R.id.view -> { Settings.putBool(this, "grid_$tab", !gridMode()); render() }
+            R.id.refresh -> { refresh.isRefreshing = true; scan() }
+            R.id.settings -> startActivity(Intent(this, SettingsActivity::class.java))
             R.id.url -> {
                 val input = EditText(this).apply { hint = getString(R.string.url_hint); setSingleLine() }
-                val pad = (20 * resources.displayMetrics.density).toInt()
-                val box = android.widget.FrameLayout(this).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
-                MaterialAlertDialogBuilder(this).setTitle(R.string.open_url).setView(box)
+                MaterialAlertDialogBuilder(this).setTitle(R.string.open_url).setView(padded(input))
                     .setPositiveButton(R.string.play) { _, _ ->
                         val u = input.text.toString().trim()
                         if (u.isNotEmpty()) startActivity(Intent(this, PlayerActivity::class.java).setData(Uri.parse(u)))
-                    }
-                    .setNegativeButton(R.string.cancel, null).show()
+                    }.setNegativeButton(R.string.cancel, null).show()
             }
             else -> return super.onOptionsItemSelected(item)
         }
         return true
     }
 
-    // ---- adapter ----
+    private fun sortSheet() {
+        val s = Sheet(this, getString(R.string.sort))
+        val names = listOf(R.string.sort_name, R.string.sort_date, if (tab == FOLDERS && folder == null) R.string.sort_size else R.string.sort_size,
+            if (tab == FOLDERS && folder == null) R.string.sort_count else R.string.sort_duration)
+        names.forEachIndexed { i, n ->
+            s.row(R.drawable.ic_sort, getString(n), checked = sort() == i) { Settings.putInt(this, sortKey(), i); render() }
+        }
+        s.divider()
+        s.row(R.drawable.ic_sort, getString(R.string.ascending), checked = !desc()) { Settings.putBool(this, sortKey() + "_desc", false); render() }
+        s.row(R.drawable.ic_sort, getString(R.string.descending), checked = desc()) { Settings.putBool(this, sortKey() + "_desc", true); render() }
+        s.show()
+    }
+
+    // ---------------- adapter ----------------
 
     private class Holder(v: View) : RecyclerView.ViewHolder(v) {
         val thumb: ImageView = v.findViewById(R.id.thumb)
         val badge: TextView = v.findViewById(R.id.badge)
-        val progress: ProgressBar = v.findViewById(R.id.progress)
+        val progress: ProgressBar? = v.findViewById(R.id.progress)
+        val newTag: TextView? = v.findViewById(R.id.newTag)
+        val check: View = v.findViewById(R.id.check)
         val title: TextView = v.findViewById(R.id.title)
         val sub: TextView = v.findViewById(R.id.sub)
+        val more: View = v.findViewById(R.id.more)
         val box: View = v.findViewById(R.id.thumbBox)
     }
 
     private inner class Adapter : RecyclerView.Adapter<Holder>() {
         override fun getItemCount() = rows.size
 
+        override fun getItemViewType(position: Int) = when {
+            rows[position] is Row.S -> R.layout.item_song
+            grid.spanCount > 1 -> R.layout.item_grid
+            else -> R.layout.item_list
+        }
+
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-            Holder(LayoutInflater.from(parent.context).inflate(R.layout.item_row, parent, false))
+            Holder(LayoutInflater.from(parent.context).inflate(viewType, parent, false)).also { it.box.clipToOutline = true }
 
         override fun onBindViewHolder(h: Holder, position: Int) {
             val ctx = this@MainActivity
-            h.box.clipToOutline = true
-            when (val r = rows[position]) {
-                is Row.Folder -> {
-                    h.title.text = r.name
-                    h.sub.text = getString(R.string.n_videos, r.count)
-                    h.badge.visibility = View.GONE
-                    h.progress.visibility = View.GONE
-                    val icon = if (r.special) R.drawable.ic_history else R.drawable.ic_folder
-                    if (r.cover != null) Thumbs.load(h.thumb, r.cover.uri, r.cover.id, true, icon)
-                    else { h.thumb.setImageResource(icon); h.thumb.scaleType = ImageView.ScaleType.CENTER }
-                    h.itemView.setOnClickListener { openFolder(r.id) }
-                    h.itemView.setOnLongClickListener(null)
+            val r = rows[position]
+            val key = when (r) { is Row.V -> r.v.key; is Row.S -> r.s.key; is Row.F -> "" }
+            val isSel = key.isNotEmpty() && key in selected
+            h.check.visibility = if (isSel) View.VISIBLE else View.GONE
+            h.itemView.setBackgroundResource(if (isSel) R.drawable.selected_bg else 0)
+            h.more.setOnClickListener { itemMenu(r) }
+            h.more.visibility = if (selected.isEmpty()) View.VISIBLE else View.INVISIBLE
+            when (r) {
+                is Row.F -> {
+                    val f = r.f
+                    h.title.text = f.name
+                    h.sub.text = resources.getQuantityString(R.plurals.n_videos, f.videos.size, f.videos.size) + "  ·  " + fmtSize(ctx, f.size)
+                    h.badge.visibility = View.VISIBLE
+                    h.badge.text = f.videos.size.toString()
+                    h.progress?.visibility = View.GONE
+                    val fresh = Settings.showNew(ctx) && f.videos.any { isNew(it) }
+                    h.newTag?.visibility = if (fresh) View.VISIBLE else View.GONE
+                    f.cover?.let { Thumbs.load(h.thumb, it.uri, it.id, true, R.drawable.ic_folder) }
+                    h.itemView.setOnClickListener { openFolder(f.id) }
+                    h.itemView.setOnLongClickListener { itemMenu(r); true }
                 }
-                is Row.VideoRow -> {
+                is Row.V -> {
                     val v = r.v
-                    h.title.text = v.name.substringBeforeLast('.')
-                    val ago = DateUtils.getRelativeTimeSpanString(v.date * 1000, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS)
-                    h.sub.text = if (query.isNotBlank() || folder == CONTINUE) "${v.folder} · ${fmtSize(ctx, v.size)}"
-                    else "${fmtSize(ctx, v.size)} · $ago"
+                    h.title.text = v.title
+                    val meta = ArrayList<String>()
+                    if (v.quality.isNotEmpty()) meta += v.quality
+                    meta += fmtSize(ctx, v.size)
+                    if (folder == null || query.isNotBlank()) meta += v.folder
+                    else meta += DateUtils.getRelativeTimeSpanString(v.date * 1000, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS).toString()
+                    h.sub.text = meta.joinToString("  ·  ")
                     h.badge.visibility = if (v.duration > 0) View.VISIBLE else View.GONE
                     h.badge.text = fmtTime(v.duration)
-                    val p = Resume.progress(ctx, v.uri.toString(), v.duration)
-                    h.progress.visibility = if (p >= 0) View.VISIBLE else View.GONE
-                    h.progress.progress = p.coerceAtLeast(0)
+                    val p = Resume.progress(ctx, v.key, v.duration)
+                    h.progress?.visibility = if (p >= 0) View.VISIBLE else View.GONE
+                    h.progress?.progress = p.coerceAtLeast(0)
+                    h.newTag?.visibility = if (Settings.showNew(ctx) && isNew(v)) View.VISIBLE else View.GONE
                     Thumbs.load(h.thumb, v.uri, v.id, true, R.drawable.ic_play)
                     h.itemView.setOnClickListener {
-                        val vids = rows.filterIsInstance<Row.VideoRow>().map { it.v }
-                        playVideos(vids, vids.indexOf(v).coerceAtLeast(0))
+                        if (selected.isNotEmpty()) toggle(v.key)
+                        else { val l = rows.filterIsInstance<Row.V>().map { it.v }; playVideos(l, l.indexOf(v).coerceAtLeast(0)) }
                     }
-                    h.itemView.setOnLongClickListener { share(v.uri, "video/*"); true }
+                    h.itemView.setOnLongClickListener { toggle(v.key); true }
                 }
-                is Row.SongRow -> {
+                is Row.S -> {
                     val s = r.s
                     h.title.text = s.title
                     h.sub.text = listOf(s.artist, s.album).filter { it.isNotBlank() }.joinToString(" · ")
-                    h.badge.visibility = if (s.duration > 0) View.VISIBLE else View.GONE
                     h.badge.text = fmtTime(s.duration)
-                    h.progress.visibility = View.GONE
+                    val playing = controller?.currentMediaItem?.mediaId == s.key
+                    h.title.setTextColor(ContextCompat.getColor(ctx, if (playing) R.color.accent else R.color.ink))
                     Thumbs.load(h.thumb, s.uri, s.id, false, R.drawable.ic_music)
                     h.itemView.setOnClickListener {
-                        val all = rows.filterIsInstance<Row.SongRow>().map { it.s }
-                        playSongs(all, all.indexOf(s).coerceAtLeast(0))
+                        if (selected.isNotEmpty()) toggle(s.key)
+                        else { val l = rows.filterIsInstance<Row.S>().map { it.s }; playSongs(l, l.indexOf(s).coerceAtLeast(0)) }
                     }
-                    h.itemView.setOnLongClickListener { share(s.uri, "audio/*"); true }
+                    h.itemView.setOnLongClickListener { toggle(s.key); true }
                 }
             }
         }
     }
+
+    /** "NEW": added in the last 14 days and never opened. */
+    private fun isNew(v: Video) = !Resume.seen(this, v.key) && System.currentTimeMillis() / 1000 - v.date < 14 * 86_400
 }
