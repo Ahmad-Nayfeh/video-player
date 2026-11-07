@@ -159,4 +159,7 @@
     <string name="empty_folder">This folder is empty. Long-press files in another folder → Move to put them here.</string>
     <string name="empty_short">Empty</string>
     <string name="folder_created">Folder created. Long-press files → Move to put them here.</string>
+    <string name="about">About</string>
+    <string name="version">Version</string>
+    <string name="version_value">%1$s (build %2$d)</string>
 </resources>

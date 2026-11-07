@@ -35,6 +35,11 @@ class SettingsActivity : AppCompatActivity() {
     class Prefs : PreferenceFragmentCompat() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.prefs, rootKey)
+            findPreference<androidx.preference.Preference>("version")?.summary = runCatching {
+                val pi = requireContext().packageManager.getPackageInfo(requireContext().packageName, 0)
+                val code = if (android.os.Build.VERSION.SDK_INT >= 28) pi.longVersionCode else @Suppress("DEPRECATION") pi.versionCode.toLong()
+                getString(R.string.version_value, pi.versionName, code)
+            }.getOrNull()
             findPreference<androidx.preference.Preference>("theme")?.setOnPreferenceChangeListener { _, _ ->
                 activity?.recreate(); true
             }

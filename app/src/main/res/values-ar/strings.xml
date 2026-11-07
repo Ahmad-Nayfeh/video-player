@@ -151,4 +151,7 @@
     <string name="empty_folder">هذا المجلد فارغ. اضغط مطولًا على ملفات في مجلد آخر ثم «نقل» لتضعها هنا.</string>
     <string name="empty_short">فارغ</string>
     <string name="folder_created">أُنشئ المجلد. اضغط مطولًا على الملفات ثم «نقل» لتضعها فيه.</string>
+    <string name="about">حول التطبيق</string>
+    <string name="version">الإصدار</string>
+    <string name="version_value">%1$s (بناء %2$d)</string>
 </resources>

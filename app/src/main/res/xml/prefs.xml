@@ -27,4 +27,7 @@
         <ListPreference app:key="sub_color" app:title="@string/pref_sub_color" app:defaultValue="#FFFFFF" app:entries="@array/subcolor_names" app:entryValues="@array/subcolor_values" app:useSimpleSummaryProvider="true" app:iconSpaceReserved="false" />
         <SwitchPreferenceCompat app:key="sub_bg" app:title="@string/pref_sub_bg" app:defaultValue="false" app:iconSpaceReserved="false" />
     </PreferenceCategory>
+    <PreferenceCategory app:title="@string/about" app:iconSpaceReserved="false">
+        <Preference app:key="version" app:title="@string/version" app:selectable="false" app:iconSpaceReserved="false" />
+    </PreferenceCategory>
 </PreferenceScreen>
