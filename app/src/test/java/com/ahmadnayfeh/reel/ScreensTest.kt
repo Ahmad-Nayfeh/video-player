@@ -145,6 +145,13 @@ class ScreensTest {
         a.onBackPressedDispatcher.onBackPressed(); settle()
         nav.selectedItemId = R.id.nav_music; settle(); layout()
         shot(a, "4_music_folders")
+        val g1 = list.layoutManager as androidx.recyclerview.widget.GridLayoutManager
+        val before = g1.spanCount
+        pinch(a, spread = false); settle(); layout()
+        org.junit.Assert.assertTrue("pinch-in on music folders should add columns", g1.spanCount > before)
+        pinch(a, spread = true); settle(); layout()
+        org.junit.Assert.assertTrue("spread on music folders should remove columns", g1.spanCount < 3)
+        step.invoke(a, 2 - g1.spanCount); settle(); layout()
         list.getChildAt(0).performClick(); settle(); layout()
         val g2 = list.layoutManager as androidx.recyclerview.widget.GridLayoutManager
         org.junit.Assert.assertEquals(2, g2.spanCount)                  // songs inside a folder: grid by default
