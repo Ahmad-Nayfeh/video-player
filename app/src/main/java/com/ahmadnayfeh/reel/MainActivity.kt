@@ -342,7 +342,7 @@ class MainActivity : AppCompatActivity() {
         val items = l.map { s ->
             MediaItem.Builder().setMediaId(s.key).setUri(s.uri)
                 .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(s.uri).build())
-                .setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album).build())
+                .setMediaMetadata(songMeta(s))
                 .build()
         }
         c.setMediaItems(items, index, 0)
@@ -577,11 +577,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun songItem(s: Song) = MediaItem.Builder().setMediaId(s.key).setUri(s.uri)
         .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(s.uri).build())
-        .setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album).build()).build()
+        .setMediaMetadata(songMeta(s)).build()
+
+    private fun songMeta(s: Song) = MediaMetadata.Builder().setTitle(s.title)
+        .setArtist(s.artist.ifBlank { s.folder }).setAlbumTitle(s.album.ifBlank { s.folder })
+        .setArtworkUri(s.uri).build()
 
     private fun videoAsAudio(v: Video) = MediaItem.Builder().setMediaId(v.key).setUri(v.uri)
         .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(v.uri).build())
-        .setMediaMetadata(MediaMetadata.Builder().setTitle(v.title).setArtist(v.folder).build()).build()
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(v.title).setArtist(v.folder).setAlbumTitle(v.folder).setArtworkUri(v.uri).build()).build()
 
     private fun playAsAudio(v: Video) {
         val c = controller ?: return

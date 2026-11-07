@@ -45,3 +45,17 @@ class SubShiftTest {
         assertEquals(ass.lines().size, out.lines().size)
     }
 }
+
+@RunWith(RobolectricTestRunner::class)
+@org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34])
+class CoverTest {
+    @Test fun generatedCovers() {
+        val dir = File("build/shots").apply { mkdirs() }
+        listOf("آية من سورتي العنكبوت والروم" to "القرآن الكريم", "Lecture 07" to "Podcasts", "Song" to null).forEachIndexed { i, (t, s) ->
+            val b = ArtLoader.cover(t, s)
+            assertEquals(640, b.width)
+            File(dir, "cover_$i.png").outputStream().use { b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }
+    }
+}

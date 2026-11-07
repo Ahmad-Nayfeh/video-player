@@ -83,6 +83,7 @@ class PlaybackService : MediaSessionService() {
         )
         session = MediaSession.Builder(this, p)
             .setSessionActivity(open)
+            .setBitmapLoader(androidx.media3.session.CacheBitmapLoader(ArtLoader(this)))
             .setCallback(object : MediaSession.Callback {
                 override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
                     if (session.isMediaNotificationController(controller)) {

@@ -781,7 +781,8 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         val uri = cur.localConfiguration?.uri ?: return false
         val item = MediaItem.Builder().setMediaId(cur.mediaId).setUri(uri)
             .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(uri).build())
-            .setMediaMetadata(MediaMetadata.Builder().setTitle(cur.mediaMetadata.title).setArtist(getString(R.string.app_name))
+            .setMediaMetadata(MediaMetadata.Builder().setTitle(cur.mediaMetadata.title)
+                .setArtist(folderOf(uri) ?: getString(R.string.app_name)).setArtworkUri(uri)
                 .apply { if (artFor == cur.mediaId) artBytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
                 .build())
             .build()
@@ -792,6 +793,12 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         player.pause()
         return true
     }
+
+    private fun folderOf(uri: Uri): String? = if (uri.scheme != "content") null else runCatching {
+        contentResolver.query(uri, arrayOf(MediaStore.Video.Media.BUCKET_DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull()
 
     private fun reclaim() {
         val id = handedOffId ?: return
