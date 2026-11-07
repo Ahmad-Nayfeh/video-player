@@ -162,14 +162,17 @@ object Thumbs {
     private val io = Executors.newFixedThreadPool(3).asCoroutineDispatcher()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    fun load(iv: ImageView, uri: Uri, id: Long, video: Boolean, placeholder: Int) {
-        val key = uri.toString()
+    /** Test hook: returns fake thumbnails. */
+    var testFetch: ((Uri) -> Bitmap?)? = null
+
+    fun load(iv: ImageView, uri: Uri, id: Long, video: Boolean, placeholder: Int, fallback: (() -> Bitmap)? = null) {
+        val key = uri.toString() + if (fallback != null) "#fb" else ""
         iv.tag = key
         cache.get(key)?.let { show(iv, it); return }
         iv.scaleType = ImageView.ScaleType.CENTER
         iv.setImageResource(placeholder)
         scope.launch {
-            val bmp = withContext(io) { fetch(iv.context, uri, id, video) }
+            val bmp = withContext(io) { (testFetch?.invoke(uri) ?: fetch(iv.context, uri, id, video)) ?: fallback?.invoke() }
             if (bmp != null) {
                 cache.put(key, bmp)
                 if (iv.tag == key) show(iv, bmp)

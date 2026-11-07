@@ -50,7 +50,7 @@ class ArtLoader(private val ctx: Context) : BitmapLoader {
 
     companion object {
         /** Dark card with a soft coral glow, the Reel mark, and the folder / album name. */
-        fun cover(title: String?, subtitle: String?): Bitmap {
+        fun cover(title: String?, subtitle: String?, label: Boolean = true): Bitmap {
             val n = 640
             val b = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
             val c = Canvas(b)
@@ -65,7 +65,7 @@ class ArtLoader(private val ctx: Context) : BitmapLoader {
             c.drawRect(0f, 0f, n.toFloat(), n.toFloat(), p)
             p.shader = null
             // Reel mark: ring + rounded play triangle
-            val cx = n / 2f; val cy = n * 0.42f; val r = n * 0.17f
+            val cx = n / 2f; val cy = if (label) n * 0.42f else n * 0.40f; val r = n * 0.17f
             p.style = Paint.Style.STROKE; p.strokeWidth = n * 0.018f; p.color = Color.WHITE
             c.drawCircle(cx, cy, r, p)
             p.style = Paint.Style.FILL; p.color = accent
@@ -75,13 +75,14 @@ class ArtLoader(private val ctx: Context) : BitmapLoader {
             p.pathEffect = android.graphics.CornerPathEffect(n * 0.012f)
             c.drawPath(t, p)
             p.pathEffect = null
+            if (!label) return b
             // label
-            val label = subtitle?.takeIf { it.isNotBlank() } ?: title?.takeIf { it.isNotBlank() } ?: "Reel"
+            val text = subtitle?.takeIf { it.isNotBlank() } ?: title?.takeIf { it.isNotBlank() } ?: "Reel"
             val tp = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.WHITE; textSize = n * 0.07f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             val w = (n * 0.84f).toInt()
-            val layout = StaticLayout.Builder.obtain(label, 0, label.length, tp, w)
+            val layout = StaticLayout.Builder.obtain(text, 0, text.length, tp, w)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER).setMaxLines(2).setEllipsize(TextUtils.TruncateAt.END).build()
             c.save(); c.translate((n - w) / 2f, n * 0.70f); layout.draw(c); c.restore()
             return b

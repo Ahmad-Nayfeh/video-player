@@ -16,7 +16,7 @@ Research into MX Player and its alternatives (VLC, KMPlayer, XPlayer, nPlayer, I
 | Sound stops when the screen turns off | video-first players | Background play + lock-screen widget |
 
 ## Features
-**Library:** two pages — Videos and Music — each organised by folders · grid or list · sort (name, date, size, count/length; ascending/descending) · search · NEW tags · resume progress on thumbnails · pull to refresh · long-press multi-select → delete, rename, move to folder, share, properties · create, rename and delete folders.
+**Library:** two pages — Videos and Music — each organised by folders · grid or list, pinch with two fingers to resize tiles (list → 2 → 3 → 4+ columns) · folder cards with a 4-video mosaic · sort (name, date, size, count/length; ascending/descending) · search · NEW tags · resume progress on thumbnails · pull to refresh · long-press multi-select → delete, rename, move to folder, share, properties · create, rename and delete folders.
 
 **Player:** hardware decoding with software audio fallback · drag the progress bar and the picture follows, with a frame preview above it · swipe sideways to seek (1–10 min per swipe) · swipe left/right edge for brightness / volume (up to 200%) · double-tap ±5/10/15/30 s · pinch to zoom · Fit / Crop / Stretch · screen lock · rotation · picture-in-picture (closing it stops playback) · speed 0.25–4× · audio and subtitle track menus · load .srt/.ass/.vtt · subtitle size, colour, background · subtitle delay (−10…+10 s) · screenshot to Pictures/Reel · sleep timer · repeat · playlist · file info · play as audio.
 

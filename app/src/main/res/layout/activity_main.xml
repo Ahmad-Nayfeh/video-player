@@ -4,6 +4,7 @@
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/bg_glow"
     android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
@@ -11,7 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:paddingStart="4dp"
-        app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall"
+        app:titleTextAppearance="@style/Reel.Title"
         app:subtitleTextColor="@color/muted" />
 
     <FrameLayout
@@ -111,7 +112,7 @@
         android:id="@+id/nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/surface"
+        android:background="@android:color/transparent"
         app:labelVisibilityMode="labeled"
         app:menu="@menu/nav" />
 </LinearLayout>

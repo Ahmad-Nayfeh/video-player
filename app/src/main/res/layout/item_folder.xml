@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="5dp">
+
+    <com.ahmadnayfeh.reel.RatioFrame
+        android:id="@+id/thumbBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/folder_bg"
+        android:tag="0.78">
+
+        <ImageView android:id="@+id/thumb" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" />
+
+        <LinearLayout android:id="@+id/mosaic" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:orientation="vertical" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+                <ImageView android:id="@+id/m1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="1.5dp" android:scaleType="centerCrop" android:background="@color/surface2" android:importantForAccessibility="no" />
+                <ImageView android:id="@+id/m2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="1.5dp" android:scaleType="centerCrop" android:background="@color/surface2" android:importantForAccessibility="no" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="3dp">
+                <ImageView android:id="@+id/m3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="1.5dp" android:scaleType="centerCrop" android:background="@color/surface2" android:importantForAccessibility="no" />
+                <ImageView android:id="@+id/m4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="1.5dp" android:scaleType="centerCrop" android:background="@color/surface2" android:importantForAccessibility="no" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="96dp" android:layout_gravity="bottom" android:background="@drawable/bottom_scrim" />
+
+        <TextView android:id="@+id/newTag" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="top|start" android:layout_margin="10dp" android:background="@drawable/new_bg"
+            android:paddingStart="6dp" android:paddingEnd="6dp" android:paddingTop="1dp" android:paddingBottom="1dp"
+            android:text="@string/new_tag" android:textColor="@color/on_accent" android:textSize="10sp" android:textStyle="bold" android:visibility="gone" />
+
+        <TextView android:id="@+id/badge" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="top|end" android:layout_margin="10dp" android:background="@drawable/pill_dark"
+            android:minWidth="28dp" android:gravity="center" android:paddingStart="8dp" android:paddingEnd="8dp"
+            android:paddingTop="2dp" android:paddingBottom="2dp" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom"
+            android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="12dp" android:paddingEnd="2dp" android:paddingBottom="8dp">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:ellipsize="end" android:maxLines="1" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold"
+                    android:shadowColor="#99000000" android:shadowRadius="4" />
+                <TextView android:id="@+id/sub" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:ellipsize="end" android:maxLines="1" android:textColor="#D9FFFFFF" android:textSize="12sp" />
+            </LinearLayout>
+            <ImageButton android:id="@+id/more" android:layout_width="36dp" android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/more"
+                android:src="@drawable/ic_more" android:tint="#FFFFFF" />
+        </LinearLayout>
+
+        <ImageView android:id="@+id/check" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:background="@drawable/sel_overlay" android:padding="36dp" android:src="@drawable/ic_check"
+            android:tint="@color/accent" android:visibility="gone" android:importantForAccessibility="no" />
+    </com.ahmadnayfeh.reel.RatioFrame>
+</FrameLayout>

@@ -16,11 +16,12 @@ import kotlin.math.roundToInt
 
 fun Context.dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
 
-/** 16:9 box. */
+/** Box with a fixed height/width ratio (16:9 by default; set another ratio with android:tag, e.g. "0.78"). */
 class RatioFrame(c: Context, a: AttributeSet?) : FrameLayout(c, a) {
+    private val ratio = (tag as? String)?.toFloatOrNull() ?: (9f / 16f)
     override fun onMeasure(w: Int, h: Int) {
         val width = MeasureSpec.getSize(w)
-        super.onMeasure(w, MeasureSpec.makeMeasureSpec(width * 9 / 16, MeasureSpec.EXACTLY))
+        super.onMeasure(w, MeasureSpec.makeMeasureSpec((width * ratio).toInt(), MeasureSpec.EXACTLY))
     }
 }
 

@@ -127,7 +127,21 @@ class MainActivity : AppCompatActivity() {
     private fun sortKey() = "sort_${tab}_${level()}"
     private fun sort() = Settings.getInt(this, sortKey(), if (atRoot() || tab == MUSIC) SORT_NAME else SORT_DATE)
     private fun desc() = Settings.getBool(this, sortKey() + "_desc", !atRoot() && tab == VIDEOS)
-    private fun gridMode() = Settings.getBool(this, "grid_${tab}_${level()}", atRoot())
+    private fun colsKey() = "cols_${tab}_${level()}"
+    private fun maxCols() = maxOf(2, resources.configuration.screenWidthDp / 100)
+    private fun cols() = Settings.getInt(this, colsKey(), if (atRoot()) 2 else 1).coerceIn(1, maxCols())
+    private fun gridMode() = cols() > 1
+
+    /** Pinch on the list: spread fingers = bigger tiles (fewer columns), pinch = smaller tiles (more columns). */
+    private fun stepCols(delta: Int) {
+        val n = (cols() + delta).coerceIn(1, maxCols())
+        if (n == cols()) return
+        Settings.putInt(this, colsKey(), n)
+        if (n > 1) Settings.putInt(this, colsKey() + "_last", n)
+        android.transition.TransitionManager.beginDelayedTransition(list, android.transition.AutoTransition().setDuration(180))
+        render()
+        list.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+    }
     private fun pendingKey() = "empty_folders_$tab"
     private fun pending(): Set<String> = Settings.p(this).getStringSet(pendingKey(), emptySet()) ?: emptySet()
     private fun setPending(v: Set<String>) = Settings.p(this).edit().putStringSet(pendingKey(), v).apply()
@@ -168,6 +182,25 @@ class MainActivity : AppCompatActivity() {
         list.layoutManager = grid
         list.adapter = adapter
         list.itemAnimator = null
+        val scaler = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            var acc = 1f
+            override fun onScaleBegin(d: android.view.ScaleGestureDetector): Boolean {
+                if (rows.any { it is Row.S }) return false
+                acc = 1f; refresh.isEnabled = false; return true
+            }
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                acc *= d.scaleFactor
+                if (acc > 1.28f) { stepCols(-1); acc = 1f } else if (acc < 0.78f) { stepCols(+1); acc = 1f }
+                return true
+            }
+            override fun onScaleEnd(d: android.view.ScaleGestureDetector) { refresh.isEnabled = true }
+        })
+        list.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: android.view.MotionEvent): Boolean {
+                scaler.onTouchEvent(e); return scaler.isInProgress || e.pointerCount > 1
+            }
+            override fun onTouchEvent(rv: RecyclerView, e: android.view.MotionEvent) { scaler.onTouchEvent(e) }
+        })
 
         tab = Settings.getInt(this, "tab2", VIDEOS).coerceIn(VIDEOS, MUSIC)
         nav.selectedItemId = if (tab == MUSIC) R.id.nav_music else R.id.nav_videos
@@ -301,9 +334,8 @@ class MainActivity : AppCompatActivity() {
         }
         back.isEnabled = inFolder
 
-        val cols = maxOf(2, (resources.configuration.screenWidthDp / 175))
         val songsShown = rows.any { it is Row.S }
-        grid.spanCount = if (!songsShown && gridMode()) cols else 1
+        grid.spanCount = if (!songsShown && gridMode()) cols() else 1
         menu?.findItem(R.id.view)?.apply {
             isVisible = !songsShown
             setIcon(if (gridMode()) R.drawable.ic_list else R.drawable.ic_grid)
@@ -616,7 +648,10 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.sort -> sortSheet()
-            R.id.view -> { Settings.putBool(this, "grid_$tab", !gridMode()); render() }
+            R.id.view -> {
+                Settings.putInt(this, colsKey(), if (gridMode()) 1 else Settings.getInt(this, colsKey() + "_last", 2))
+                render()
+            }
             R.id.refresh -> { refresh.isRefreshing = true; scan() }
             R.id.settings -> startActivity(Intent(this, SettingsActivity::class.java))
             R.id.new_folder -> createFolder()
@@ -657,6 +692,8 @@ class MainActivity : AppCompatActivity() {
         val sub: TextView = v.findViewById(R.id.sub)
         val more: View = v.findViewById(R.id.more)
         val box: View = v.findViewById(R.id.thumbBox)
+        val mosaic: View? = v.findViewById(R.id.mosaic)
+        val tiles: List<ImageView> = listOfNotNull(v.findViewById(R.id.m1), v.findViewById(R.id.m2), v.findViewById(R.id.m3), v.findViewById(R.id.m4))
     }
 
     private inner class Adapter : RecyclerView.Adapter<Holder>() {
@@ -664,6 +701,7 @@ class MainActivity : AppCompatActivity() {
 
         override fun getItemViewType(position: Int) = when {
             rows[position] is Row.S -> R.layout.item_song
+            grid.spanCount > 1 && rows[position] is Row.F -> R.layout.item_folder
             grid.spanCount > 1 -> R.layout.item_grid
             else -> R.layout.item_list
         }
@@ -684,18 +722,28 @@ class MainActivity : AppCompatActivity() {
                 is Row.F -> {
                     val f = r.f
                     h.title.text = f.name
-                    h.sub.text = if (f.isEmpty) getString(R.string.empty_short) else
-                        resources.getQuantityString(if (f.music) R.plurals.n_songs else R.plurals.n_videos, f.count, f.count) + "  ·  " + fmtSize(ctx, f.size)
+                    val countText = resources.getQuantityString(if (f.music) R.plurals.n_songs else R.plurals.n_videos, f.count, f.count)
+                    h.sub.text = when {
+                        f.isEmpty -> getString(R.string.empty_short)
+                        grid.spanCount >= 3 -> countText
+                        else -> countText + "  ·  " + fmtSize(ctx, f.size)
+                    }
                     h.badge.visibility = if (f.isEmpty) View.GONE else View.VISIBLE
                     h.badge.text = f.count.toString()
                     h.progress?.visibility = View.GONE
                     val fresh = Settings.showNew(ctx) && f.videos.any { isNew(it) }
                     h.newTag?.visibility = if (fresh) View.VISIBLE else View.GONE
-                    val cover = f.cover
+                    val latest = f.videos.sortedByDescending { it.date }
                     val song = f.songs.firstOrNull()
+                    val useMosaic = h.mosaic != null && latest.size >= 4 && grid.spanCount <= 3
+                    h.mosaic?.visibility = if (useMosaic) View.VISIBLE else View.GONE
+                    h.thumb.visibility = if (useMosaic) View.GONE else View.VISIBLE
+                    val folderName = f.name
                     when {
-                        cover != null -> Thumbs.load(h.thumb, cover.uri, cover.id, true, R.drawable.ic_folder)
-                        song != null -> Thumbs.load(h.thumb, song.uri, song.id, false, R.drawable.ic_folder)
+                        useMosaic -> latest.take(4).forEachIndexed { i, v -> Thumbs.load(h.tiles[i], v.uri, v.id, true, R.drawable.ic_play) }
+                        latest.isNotEmpty() -> Thumbs.load(h.thumb, latest[0].uri, latest[0].id, true, R.drawable.ic_folder)
+                        song != null -> Thumbs.load(h.thumb, song.uri, song.id, false, R.drawable.ic_folder) { ArtLoader.cover(null, folderName, label = false) }
+                        f.music -> Thumbs.load(h.thumb, Uri.parse("reel://folder/" + f.relPath), 0, false, R.drawable.ic_folder) { ArtLoader.cover(null, folderName, label = false) }
                         else -> { h.thumb.tag = null; h.thumb.scaleType = ImageView.ScaleType.CENTER; h.thumb.setImageResource(R.drawable.ic_folder) }
                     }
                     h.itemView.setOnClickListener { openFolder(f.id) }

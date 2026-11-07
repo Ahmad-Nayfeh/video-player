@@ -25,12 +25,25 @@ import java.io.File
 @Config(sdk = [34], qualifiers = "w400dp-h860dp-xxhdpi")
 class ScreensTest {
 
+    private fun fakeThumb(u: Uri): Bitmap {
+        val b = Bitmap.createBitmap(480, 270, Bitmap.Config.ARGB_8888)
+        val h = (u.toString().hashCode() and 0xFFFFFF)
+        val c = Canvas(b)
+        val p = android.graphics.Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 480f, 270f, h or 0xFF000000.toInt(), (h xor 0x5A3C7F) or 0xFF000000.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        }
+        c.drawRect(0f, 0f, 480f, 270f, p)
+        return b
+    }
+
     private fun fake() {
+        Thumbs.testFetch = { u -> if (u.toString().contains("video")) fakeThumb(u) else null }
         val now = System.currentTimeMillis() / 1000
         val names = listOf("Interstellar.2014.1080p.mkv", "Family trip - Abha.mp4", "Lecture 07 - Power systems.mp4",
-            "Dune Part Two (2024) 4K HDR.mkv", "WhatsApp Video 2026-10-01.mp4", "Football highlights.mp4")
+            "Dune Part Two (2024) 4K HDR.mkv", "WhatsApp Video 2026-10-01.mp4", "Football highlights.mp4",
+            "Oppenheimer.2023.mkv", "Tenet.2020.mp4", "Lecture 08.mp4", "Inception.mkv")
         MediaRepo.fakeVideos = names.mapIndexed { i, n ->
-            val folder = listOf("Movies", "Camera", "Lectures", "Movies", "WhatsApp Video", "Download")[i]
+            val folder = listOf("Movies", "Camera", "Lectures", "Movies", "WhatsApp Video", "Download", "Movies", "Movies", "Lectures", "Movies")[i]
             Video(i.toLong(), Uri.parse("content://media/external/video/media/$i"), n, (i + 1) * 1_430_000L, (i + 1) * 380_000_000L,
                 now - i * 86_400L * 5, folder, folder, if (i == 3) 3840 else 1920, if (i == 3) 2160 else 1080, "$folder/", "/sdcard/$folder/$n")
         }
@@ -70,6 +83,12 @@ class ScreensTest {
         }
         nav.selectedItemId = R.id.nav_videos; settle(); layout()
         shot(a, "1_video_folders")
+        val step = MainActivity::class.java.getDeclaredMethod("stepCols", Int::class.javaPrimitiveType).apply { isAccessible = true }
+        step.invoke(a, 1); settle(); layout(); shot(a, "1b_three_columns")
+        org.junit.Assert.assertEquals(3, (list.layoutManager as androidx.recyclerview.widget.GridLayoutManager).spanCount)
+        step.invoke(a, -2); settle(); layout(); shot(a, "1c_list")
+        org.junit.Assert.assertEquals(1, (list.layoutManager as androidx.recyclerview.widget.GridLayoutManager).spanCount)
+        step.invoke(a, 1); settle(); layout()
         list.getChildAt(0).performClick(); settle(); layout()
         shot(a, "2_video_folder_open")
         list.getChildAt(0).performLongClick(); settle(); layout()
