@@ -51,10 +51,16 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
-    data class Folder(val id: String, val name: String, val videos: List<Video>) {
-        val size get() = videos.sumOf { it.size }
-        val latest get() = videos.maxOfOrNull { it.date } ?: 0L
+    data class Folder(
+        val id: String, val name: String, val relPath: String, val music: Boolean,
+        val videos: List<Video> = emptyList(), val songs: List<Song> = emptyList(),
+    ) {
+        val count get() = videos.size + songs.size
+        val size get() = videos.sumOf { it.size } + songs.sumOf { it.size }
+        val latest get() = maxOf(videos.maxOfOrNull { it.date } ?: 0L, songs.maxOfOrNull { it.date } ?: 0L)
         val cover get() = videos.maxByOrNull { it.date }
+        val isEmpty get() = count == 0
+        val uris get() = videos.map { it.uri to it.path } + songs.map { it.uri to it.path }
     }
 
     private sealed class Row {
@@ -64,7 +70,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private companion object {
-        const val FOLDERS = 0; const val VIDEOS = 1; const val MUSIC = 2
+        const val VIDEOS = 0; const val MUSIC = 1
         const val SORT_NAME = 0; const val SORT_DATE = 1; const val SORT_SIZE = 2; const val SORT_DURATION = 3
     }
 
@@ -86,7 +92,7 @@ class MainActivity : AppCompatActivity() {
     private var videos: List<Video> = emptyList()
     private var songs: List<Song> = emptyList()
     private var rows: List<Row> = emptyList()
-    private var tab = FOLDERS
+    private var tab = VIDEOS
     private var folder: String? = null
     private var query = ""
     private var menu: Menu? = null
@@ -116,10 +122,15 @@ class MainActivity : AppCompatActivity() {
         override fun handleOnBackPressed() { openFolder(null) }
     }
 
-    private fun sortKey() = "sort_$tab"
-    private fun sort() = Settings.getInt(this, sortKey(), if (tab == MUSIC) SORT_NAME else SORT_DATE)
-    private fun desc() = Settings.getBool(this, sortKey() + "_desc", tab != MUSIC)
-    private fun gridMode() = Settings.getBool(this, "grid_$tab", tab == FOLDERS)
+    private fun atRoot() = folder == null && query.isBlank()
+    private fun level() = if (atRoot()) "root" else "in"
+    private fun sortKey() = "sort_${tab}_${level()}"
+    private fun sort() = Settings.getInt(this, sortKey(), if (atRoot() || tab == MUSIC) SORT_NAME else SORT_DATE)
+    private fun desc() = Settings.getBool(this, sortKey() + "_desc", !atRoot() && tab == VIDEOS)
+    private fun gridMode() = Settings.getBool(this, "grid_${tab}_${level()}", atRoot())
+    private fun pendingKey() = "empty_folders_$tab"
+    private fun pending(): Set<String> = Settings.p(this).getStringSet(pendingKey(), emptySet()) ?: emptySet()
+    private fun setPending(v: Set<String>) = Settings.p(this).edit().putStringSet(pendingKey(), v).apply()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Settings.applyTheme(this)
@@ -158,13 +169,13 @@ class MainActivity : AppCompatActivity() {
         list.adapter = adapter
         list.itemAnimator = null
 
-        tab = Settings.getInt(this, "tab", FOLDERS)
-        nav.selectedItemId = when (tab) { VIDEOS -> R.id.nav_videos; MUSIC -> R.id.nav_music; else -> R.id.nav_folders }
+        tab = Settings.getInt(this, "tab2", VIDEOS).coerceIn(VIDEOS, MUSIC)
+        nav.selectedItemId = if (tab == MUSIC) R.id.nav_music else R.id.nav_videos
         nav.setOnItemSelectedListener { item ->
-            val t = when (item.itemId) { R.id.nav_videos -> VIDEOS; R.id.nav_music -> MUSIC; else -> FOLDERS }
+            val t = if (item.itemId == R.id.nav_music) MUSIC else VIDEOS
             if (t != tab) {
                 tab = t; folder = null
-                Settings.putInt(this, "tab", tab)
+                Settings.putInt(this, "tab2", tab)
                 endSelection(); render(); list.scrollToPosition(0)
             }
             true
@@ -235,13 +246,29 @@ class MainActivity : AppCompatActivity() {
         return if (desc()) s.reversed() else s
     }
 
-    private fun folders(): List<Folder> {
-        val f = videos.groupBy { it.folderId }.map { (id, vs) -> Folder(id, vs.first().folder, vs) }
+    private fun sortSongs(l: List<Song>): List<Song> {
         val s = when (sort()) {
-            SORT_DATE -> f.sortedBy { it.latest }
-            SORT_SIZE -> f.sortedBy { it.size }
-            SORT_DURATION -> f.sortedBy { it.videos.size }
-            else -> f.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+            SORT_DATE -> l.sortedBy { it.date }; SORT_SIZE -> l.sortedBy { it.size }; SORT_DURATION -> l.sortedBy { it.duration }
+            else -> l.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+        }
+        return if (desc()) s.reversed() else s
+    }
+
+    private fun folders(): List<Folder> {
+        val music = tab == MUSIC
+        val real = if (music) songs.groupBy { it.folderId }.map { (id, l) -> Folder(id, l.first().folder, l.first().relPath, true, songs = l) }
+        else videos.groupBy { it.folderId }.map { (id, l) -> Folder(id, l.first().folder, l.first().relPath, false, videos = l) }
+        // Folders you created that have no files yet (Android only shows folders that contain media).
+        val realPaths = real.map { it.relPath.trimEnd('/') }.toSet()
+        val p = pending()
+        val stillEmpty = p.filter { it.trimEnd('/') !in realPaths }.toSet()
+        if (stillEmpty.size != p.size) setPending(stillEmpty)
+        val all = real + stillEmpty.map { Folder("empty:$it", it.trimEnd('/').substringAfterLast('/'), it, music) }
+        val s = when (sort()) {
+            SORT_DATE -> all.sortedBy { it.latest }
+            SORT_SIZE -> all.sortedBy { it.size }
+            SORT_DURATION -> all.sortedBy { it.count }
+            else -> all.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
         }
         return if (desc()) s.reversed() else s
     }
@@ -249,50 +276,48 @@ class MainActivity : AppCompatActivity() {
     private fun render() {
         val q = query.trim()
         val f = folder
+        val music = tab == MUSIC
         rows = when {
-            tab == MUSIC -> {
-                val l = if (q.isEmpty()) songs else songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.album.contains(q, true) }
-                val s = when (sort()) {
-                    SORT_DATE -> l.sortedBy { it.date }; SORT_SIZE -> l.sortedBy { it.size }; SORT_DURATION -> l.sortedBy { it.duration }
-                    else -> l.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-                }
-                (if (desc()) s.reversed() else s).map { Row.S(it) }
-            }
+            q.isNotEmpty() && music -> sortSongs(songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.album.contains(q, true) || it.folder.contains(q, true) }).map { Row.S(it) }
             q.isNotEmpty() -> sortVideos(videos.filter { it.name.contains(q, true) || it.folder.contains(q, true) }).map { Row.V(it) }
-            tab == FOLDERS && f == null -> folders().map { Row.F(it) }
-            tab == FOLDERS -> sortVideos(videos.filter { it.folderId == f }).map { Row.V(it) }
-            else -> sortVideos(videos).map { Row.V(it) }
+            f == null -> folders().map { Row.F(it) }
+            music -> sortSongs(songs.filter { it.folderId == f }).map { Row.S(it) }
+            else -> sortVideos(videos.filter { it.folderId == f }).map { Row.V(it) }
         }
 
-        val inFolder = tab == FOLDERS && f != null
+        val inFolder = f != null
         if (inFolder) {
-            val name = videos.firstOrNull { it.folderId == f }?.folder ?: ""
-            toolbar.title = name
-            toolbar.subtitle = resources.getQuantityString(R.plurals.n_videos, rows.size, rows.size)
+            toolbar.title = if (music) songs.firstOrNull { it.folderId == f }?.folder ?: f!!.removePrefix("empty:").trimEnd('/').substringAfterLast('/')
+            else videos.firstOrNull { it.folderId == f }?.folder ?: f!!.removePrefix("empty:").trimEnd('/').substringAfterLast('/')
+            toolbar.subtitle = resources.getQuantityString(if (music) R.plurals.n_songs else R.plurals.n_videos, rows.size, rows.size)
             toolbar.setNavigationIcon(R.drawable.ic_back)
         } else {
-            toolbar.title = getString(R.string.app_name)
-            toolbar.subtitle = when (tab) {
-                MUSIC -> resources.getQuantityString(R.plurals.n_songs, songs.size, songs.size)
-                VIDEOS -> resources.getQuantityString(R.plurals.n_videos, videos.size, videos.size)
-                else -> if (videos.isEmpty()) null else resources.getQuantityString(R.plurals.n_folders, folders().size, folders().size)
-            }
+            toolbar.title = getString(if (music) R.string.tab_music else R.string.tab_videos)
+            val n = if (q.isEmpty()) rows.size else folders().size
+            val total = if (music) songs.size else videos.size
+            toolbar.subtitle = resources.getQuantityString(R.plurals.n_folders, n, n) + "  ·  " +
+                resources.getQuantityString(if (music) R.plurals.n_songs else R.plurals.n_videos, total, total)
             toolbar.navigationIcon = null
         }
         back.isEnabled = inFolder
 
         val cols = maxOf(2, (resources.configuration.screenWidthDp / 175))
-        grid.spanCount = if (tab != MUSIC && gridMode()) cols else 1
+        val songsShown = rows.any { it is Row.S }
+        grid.spanCount = if (!songsShown && gridMode()) cols else 1
         menu?.findItem(R.id.view)?.apply {
-            isVisible = tab != MUSIC
+            isVisible = !songsShown
             setIcon(if (gridMode()) R.drawable.ic_list else R.drawable.ic_grid)
         }
+        menu?.findItem(R.id.new_folder)?.isVisible = !inFolder
 
         val perm = hasPermission()
         empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
         emptyBtn.visibility = if (perm) View.GONE else View.VISIBLE
-        emptyIcon.setImageResource(if (tab == MUSIC) R.drawable.ic_music else R.drawable.ic_video_lib)
-        emptyText.text = getString(when { !perm -> R.string.grant_access; q.isNotEmpty() -> R.string.no_results; else -> R.string.no_media })
+        emptyIcon.setImageResource(if (music) R.drawable.ic_music else R.drawable.ic_video_lib)
+        emptyText.text = getString(when {
+            !perm -> R.string.grant_access; q.isNotEmpty() -> R.string.no_results
+            inFolder && rows.isEmpty() -> R.string.empty_folder; else -> R.string.no_media
+        })
         adapter.notifyDataSetChanged()
     }
 
@@ -362,7 +387,7 @@ class MainActivity : AppCompatActivity() {
         override fun onPrepareActionMode(mode: ActionMode, m: Menu): Boolean {
             m.findItem(R.id.sel_rename).isVisible = selected.size == 1
             m.findItem(R.id.sel_info).isVisible = selected.size == 1
-            m.findItem(R.id.sel_move).isVisible = tab != MUSIC
+            m.findItem(R.id.sel_move).isVisible = true
             return true
         }
         override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
@@ -422,25 +447,60 @@ class MainActivity : AppCompatActivity() {
         input.requestFocus()
     }
 
+    private fun defaultRoot() = if (tab == MUSIC) "Music/" else "Movies/"
+
     private fun moveSelected() {
-        val items = selectedVideos()
+        val items = selectedVideos().map { it.uri to it.path } + selectedSongs().map { it.uri to it.path }
         if (items.isEmpty()) return
-        val targets = videos.map { it.relPath }.filter { it.isNotBlank() }.distinct().sorted()
+        val existing = (if (tab == MUSIC) songs.map { it.relPath } else videos.map { it.relPath }) + pending()
+        val targets = existing.filter { it.isNotBlank() }.map { if (it.endsWith("/")) it else "$it/" }.distinct().sorted()
         val s = Sheet(this, getString(R.string.move_to))
         s.row(R.drawable.ic_folder_open, getString(R.string.new_folder)) {
-            val input = EditText(this).apply { hint = getString(R.string.folder_name); setSingleLine() }
-            MaterialAlertDialogBuilder(this).setTitle(R.string.new_folder).setView(padded(input))
-                .setPositiveButton(R.string.move) { _, _ ->
-                    val n = input.text.toString().trim().replace("/", "_")
-                    if (n.isNotEmpty()) fileOps.move(items.map { it.uri to it.path }, "Movies/$n/")
-                }.setNegativeButton(R.string.cancel, null).show()
+            askFolderName(R.string.new_folder, "") { n -> fileOps.move(items, "${defaultRoot()}$n/") }
         }
         targets.forEach { t ->
-            s.row(R.drawable.ic_folder, t.trimEnd('/').substringAfterLast('/'), t.trimEnd('/')) {
-                fileOps.move(items.map { it.uri to it.path }, if (t.endsWith("/")) t else "$t/")
-            }
+            s.row(R.drawable.ic_folder, t.trimEnd('/').substringAfterLast('/'), t.trimEnd('/')) { fileOps.move(items, t) }
         }
         s.show()
+    }
+
+    private fun askFolderName(title: Int, current: String, onName: (String) -> Unit) {
+        val input = EditText(this).apply { hint = getString(R.string.folder_name); setSingleLine(); setText(current); selectAll() }
+        MaterialAlertDialogBuilder(this).setTitle(title).setView(padded(input))
+            .setPositiveButton(R.string.save) { _, _ ->
+                val n = input.text.toString().trim().replace("/", "_").replace("\\", "_")
+                if (n.isNotEmpty()) onName(n)
+            }.setNegativeButton(R.string.cancel, null).show()
+        input.requestFocus()
+    }
+
+    private fun createFolder() {
+        askFolderName(R.string.new_folder, "") { n ->
+            val rel = "${defaultRoot()}$n/"
+            runCatching {
+                @Suppress("DEPRECATION")
+                java.io.File(android.os.Environment.getExternalStorageDirectory(), rel).mkdirs()
+            }
+            setPending(pending() + rel)
+            render()
+            android.widget.Toast.makeText(this, R.string.folder_created, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun renameFolder(f: Folder) {
+        askFolderName(R.string.rename_folder, f.name) { n ->
+            val parent = f.relPath.trimEnd('/').substringBeforeLast('/', "")
+            val newRel = (if (parent.isEmpty()) defaultRoot() else "$parent/") + "$n/"
+            if (f.isEmpty) { setPending(pending() - f.relPath + newRel); render() }
+            else fileOps.move(f.uris, newRel)
+        }
+    }
+
+    private fun deleteFolder(f: Folder) {
+        if (f.isEmpty) { setPending(pending() - f.relPath); render(); return }
+        MaterialAlertDialogBuilder(this).setTitle(getString(R.string.delete_folder_q, f.name, f.count))
+            .setPositiveButton(R.string.delete) { _, _ -> fileOps.delete(f.uris.map { it.first }, f.uris.map { it.second }) }
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun infoSelected() {
@@ -496,13 +556,20 @@ class MainActivity : AppCompatActivity() {
             is Row.F -> {
                 val f = r.f
                 val s = Sheet(this, f.name)
-                s.row(R.drawable.ic_play, getString(R.string.play_all)) { playVideos(sortVideos(f.videos), 0) }
-                s.row(R.drawable.ic_headphones, getString(R.string.play_audio_only)) {
-                    val l = sortVideos(f.videos)
-                    controller?.let { c -> c.setMediaItems(l.map { videoAsAudio(it) }); c.prepare(); c.play() }
+                if (!f.isEmpty) {
+                    s.row(R.drawable.ic_play, getString(R.string.play_all)) {
+                        if (f.music) playSongs(sortSongs(f.songs), 0) else playVideos(sortVideos(f.videos), 0)
+                    }
+                    if (!f.music) s.row(R.drawable.ic_headphones, getString(R.string.play_audio_only)) {
+                        val l = sortVideos(f.videos)
+                        controller?.let { c -> c.setMediaItems(l.map { videoAsAudio(it) }); c.prepare(); c.play() }
+                    }
                 }
-                s.text(getString(R.string.size), fmtSize(this, f.size) + "  ·  " + resources.getQuantityString(R.plurals.n_videos, f.videos.size, f.videos.size))
-                f.cover?.relPath?.let { if (it.isNotBlank()) s.text(getString(R.string.location), it) }
+                s.row(R.drawable.ic_edit, getString(R.string.rename_folder)) { renameFolder(f) }
+                s.row(R.drawable.ic_delete, getString(R.string.delete_folder)) { deleteFolder(f) }
+                s.text(getString(R.string.size), fmtSize(this, f.size) + "  ·  " +
+                    resources.getQuantityString(if (f.music) R.plurals.n_songs else R.plurals.n_videos, f.count, f.count))
+                if (f.relPath.isNotBlank()) s.text(getString(R.string.location), f.relPath)
                 s.show()
             }
         }
@@ -548,6 +615,7 @@ class MainActivity : AppCompatActivity() {
             R.id.view -> { Settings.putBool(this, "grid_$tab", !gridMode()); render() }
             R.id.refresh -> { refresh.isRefreshing = true; scan() }
             R.id.settings -> startActivity(Intent(this, SettingsActivity::class.java))
+            R.id.new_folder -> createFolder()
             R.id.url -> {
                 val input = EditText(this).apply { hint = getString(R.string.url_hint); setSingleLine() }
                 MaterialAlertDialogBuilder(this).setTitle(R.string.open_url).setView(padded(input))
@@ -563,8 +631,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sortSheet() {
         val s = Sheet(this, getString(R.string.sort))
-        val names = listOf(R.string.sort_name, R.string.sort_date, if (tab == FOLDERS && folder == null) R.string.sort_size else R.string.sort_size,
-            if (tab == FOLDERS && folder == null) R.string.sort_count else R.string.sort_duration)
+        val names = listOf(R.string.sort_name, R.string.sort_date, R.string.sort_size, if (atRoot()) R.string.sort_count else R.string.sort_duration)
         names.forEachIndexed { i, n ->
             s.row(R.drawable.ic_sort, getString(n), checked = sort() == i) { Settings.putInt(this, sortKey(), i); render() }
         }
@@ -613,13 +680,20 @@ class MainActivity : AppCompatActivity() {
                 is Row.F -> {
                     val f = r.f
                     h.title.text = f.name
-                    h.sub.text = resources.getQuantityString(R.plurals.n_videos, f.videos.size, f.videos.size) + "  ·  " + fmtSize(ctx, f.size)
-                    h.badge.visibility = View.VISIBLE
-                    h.badge.text = f.videos.size.toString()
+                    h.sub.text = if (f.isEmpty) getString(R.string.empty_short) else
+                        resources.getQuantityString(if (f.music) R.plurals.n_songs else R.plurals.n_videos, f.count, f.count) + "  ·  " + fmtSize(ctx, f.size)
+                    h.badge.visibility = if (f.isEmpty) View.GONE else View.VISIBLE
+                    h.badge.text = f.count.toString()
                     h.progress?.visibility = View.GONE
                     val fresh = Settings.showNew(ctx) && f.videos.any { isNew(it) }
                     h.newTag?.visibility = if (fresh) View.VISIBLE else View.GONE
-                    f.cover?.let { Thumbs.load(h.thumb, it.uri, it.id, true, R.drawable.ic_folder) }
+                    val cover = f.cover
+                    val song = f.songs.firstOrNull()
+                    when {
+                        cover != null -> Thumbs.load(h.thumb, cover.uri, cover.id, true, R.drawable.ic_folder)
+                        song != null -> Thumbs.load(h.thumb, song.uri, song.id, false, R.drawable.ic_folder)
+                        else -> { h.thumb.tag = null; h.thumb.scaleType = ImageView.ScaleType.CENTER; h.thumb.setImageResource(R.drawable.ic_folder) }
+                    }
                     h.itemView.setOnClickListener { openFolder(f.id) }
                     h.itemView.setOnLongClickListener { itemMenu(r); true }
                 }

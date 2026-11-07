@@ -40,6 +40,7 @@ data class Video(
 data class Song(
     val id: Long, val uri: Uri, val title: String, val artist: String,
     val album: String, val duration: Long, val size: Long, val date: Long, val path: String?,
+    val folder: String = "Music", val folderId: String = "music", val relPath: String = "Music/",
 ) { val key get() = uri.toString() }
 
 object MediaRepo {
@@ -85,18 +86,26 @@ object MediaRepo {
         val out = ArrayList<Song>()
         val coll = if (Build.VERSION.SDK_INT >= 29) MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val proj = arrayOf(
+        val cols = mutableListOf(
             MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.SIZE,
             MediaStore.Audio.Media.DATE_ADDED, MediaStore.Audio.Media.DATA,
         )
+        if (Build.VERSION.SDK_INT >= 29) cols += listOf(
+            MediaStore.Audio.Media.BUCKET_DISPLAY_NAME, MediaStore.Audio.Media.BUCKET_ID, MediaStore.Audio.Media.RELATIVE_PATH,
+        )
         runCatching {
-            ctx.contentResolver.query(coll, proj, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, null)?.use { c ->
+            ctx.contentResolver.query(coll, cols.toTypedArray(), "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, null)?.use { c ->
                 while (c.moveToNext()) {
                     val id = c.getLong(0)
                     val artist = c.getString(2)?.takeUnless { it == "<unknown>" } ?: ""
+                    val path = c.getString(7)
+                    val parent = path?.let { File(it).parentFile }
+                    val folder = (if (Build.VERSION.SDK_INT >= 29) c.getString(8) else null) ?: parent?.name ?: "Music"
+                    val folderId = (if (Build.VERSION.SDK_INT >= 29) c.getString(9) else null) ?: parent?.path?.hashCode()?.toString() ?: "music"
+                    val rel = (if (Build.VERSION.SDK_INT >= 29) c.getString(10) else null) ?: relFromPath(path)
                     out += Song(id, ContentUris.withAppendedId(coll, id), c.getString(1) ?: "Track", artist,
-                        c.getString(3) ?: "", c.getLong(4), c.getLong(5), c.getLong(6), c.getString(7))
+                        c.getString(3) ?: "", c.getLong(4), c.getLong(5), c.getLong(6), path, folder, folderId, rel)
                 }
             }
         }

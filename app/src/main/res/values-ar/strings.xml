@@ -34,7 +34,7 @@
     <string name="move">نقل</string>
     <string name="move_to">نقل إلى</string>
     <string name="n_selected">%d محدد</string>
-    <string name="new_folder">مجلد جديد…</string>
+    <string name="new_folder">مجلد جديد</string>
     <string name="new_tag">جديد</string>
     <string name="next">التالي</string>
     <string name="no_media">لا يوجد شيء هنا بعد.</string>
@@ -145,4 +145,10 @@
     <string name="sub_delay">تأخير الترجمة</string>
     <string name="sub_delay_embedded_note">الترجمة المدمجة في الفيديو يمكن تأخيرها فقط. ملفات الترجمة التي تحمّلها يمكن تقديمها وتأخيرها.</string>
     <string name="reset">إعادة الضبط</string>
+    <string name="rename_folder">إعادة تسمية المجلد</string>
+    <string name="delete_folder">حذف المجلد</string>
+    <string name="delete_folder_q">حذف «%1$s» مع ملفاته (%2$d)؟</string>
+    <string name="empty_folder">هذا المجلد فارغ. اضغط مطولًا على ملفات في مجلد آخر ثم «نقل» لتضعها هنا.</string>
+    <string name="empty_short">فارغ</string>
+    <string name="folder_created">أُنشئ المجلد. اضغط مطولًا على الملفات ثم «نقل» لتضعها فيه.</string>
 </resources>

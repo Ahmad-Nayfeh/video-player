@@ -35,7 +35,8 @@ class ScreensTest {
                 now - i * 86_400L * 5, folder, folder, if (i == 3) 3840 else 1920, if (i == 3) 2160 else 1080, "$folder/", "/sdcard/$folder/$n")
         }
         MediaRepo.fakeSongs = (1..5).map { i ->
-            Song(100L + i, Uri.parse("content://media/external/audio/media/$i"), "Song number $i", "Artist $i", "Album", 200_000L + i * 10_000, 5_000_000, now, null)
+            val fo = if (i <= 3) "Quran" else "Podcasts"
+            Song(100L + i, Uri.parse("content://media/external/audio/media/$i"), "Song number $i", "Artist $i", "Album", 200_000L + i * 10_000, 5_000_000, now, null, fo, fo, "Music/$fo/")
         }
         val app = ApplicationProvider.getApplicationContext<Application>()
         shadowOf(app).grantPermissions(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO,
@@ -61,22 +62,40 @@ class ScreensTest {
         val c = Robolectric.buildActivity(MainActivity::class.java).setup()
         settle()
         val a = c.get()
-        Settings.putInt(a, "tab", 0)
-        shot(a, "1_folders")
-        a.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.nav).selectedItemId = R.id.nav_videos
-        settle(); shot(a, "2_videos")
-        a.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.nav).selectedItemId = R.id.nav_music
-        settle(); shot(a, "3_music")
-        a.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.nav).selectedItemId = R.id.nav_videos
-        settle()
-        a.window.decorView.apply {
+        val nav = a.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.nav)
+        val list = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.list)
+        fun layout() = a.window.decorView.apply {
             measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2580, View.MeasureSpec.EXACTLY))
             layout(0, 0, 1200, 2580)
         }
-        val list = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.list)
-        list.getChildAt(0).performLongClick()
-        list.getChildAt(1).performClick()
-        settle(); shot(a, "4_selection")
+        nav.selectedItemId = R.id.nav_videos; settle(); layout()
+        shot(a, "1_video_folders")
+        list.getChildAt(0).performClick(); settle(); layout()
+        shot(a, "2_video_folder_open")
+        list.getChildAt(0).performLongClick(); settle(); layout()
+        shot(a, "3_selection")
+        fun call(name: String, vararg args: Any?): Any? {
+            val m = MainActivity::class.java.declaredMethods.first { it.name == name && it.parameterCount == args.size }
+            m.isAccessible = true; val r = m.invoke(a, *args); settle(); return r
+        }
+        call("moveSelected")                       // move sheet with "New folder" + existing folders
+        a.onBackPressedDispatcher.onBackPressed(); settle()
+        a.onBackPressedDispatcher.onBackPressed(); settle(); layout()
+        val before = list.adapter!!.itemCount
+        call("setPending", setOf("Movies/My new folder/")); call("render"); layout()
+        org.junit.Assert.assertEquals(before + 1, list.adapter!!.itemCount)   // empty folder is listed
+        shot(a, "3b_new_empty_folder")
+        val folderCls = MainActivity::class.java.declaredClasses.first { it.simpleName == "Folder" }
+        val empty = folderCls.constructors.first { it.parameterCount == 6 }
+            .newInstance("empty:Movies/My new folder/", "My new folder", "Movies/My new folder/", false, emptyList<Any>(), emptyList<Any>())
+        call("renameFolder", empty); call("deleteFolder", empty); call("createFolder")
+        org.junit.Assert.assertEquals(before, list.adapter!!.itemCount)       // deleting the empty folder removes it
+        a.onBackPressedDispatcher.onBackPressed(); settle()
+        a.onBackPressedDispatcher.onBackPressed(); settle()
+        nav.selectedItemId = R.id.nav_music; settle(); layout()
+        shot(a, "4_music_folders")
+        list.getChildAt(0).performClick(); settle(); layout()
+        shot(a, "5_music_folder_open")
     }
 
     @Test fun player() {

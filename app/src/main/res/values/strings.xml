@@ -35,7 +35,7 @@
     <string name="move">Move</string>
     <string name="move_to">Move to</string>
     <string name="n_selected">%d selected</string>
-    <string name="new_folder">New folder…</string>
+    <string name="new_folder">New folder</string>
     <string name="new_tag">NEW</string>
     <string name="next">Next</string>
     <string name="no_media">Nothing here yet.</string>
@@ -153,4 +153,10 @@
     <string name="sub_delay">Subtitle delay</string>
     <string name="sub_delay_embedded_note">Embedded subtitles can only be delayed (shown later). Loaded subtitle files can move both ways.</string>
     <string name="reset">Reset</string>
+    <string name="rename_folder">Rename folder</string>
+    <string name="delete_folder">Delete folder</string>
+    <string name="delete_folder_q">Delete “%1$s” and its %2$d files?</string>
+    <string name="empty_folder">This folder is empty. Long-press files in another folder → Move to put them here.</string>
+    <string name="empty_short">Empty</string>
+    <string name="folder_created">Folder created. Long-press files → Move to put them here.</string>
 </resources>

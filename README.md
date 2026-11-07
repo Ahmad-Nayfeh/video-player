@@ -11,12 +11,12 @@ Research into MX Player and its alternatives (VLC, KMPlayer, XPlayer, nPlayer, I
 |---|---|---|
 | Ads everywhere | MX Player free, KMPlayer, XPlayer | Zero ads, zero analytics |
 | "EAC3/AC3/DTS not supported" — video plays silent | MX Player dropped Dolby/DTS | FFmpeg audio decoders built in |
-| Clunky / heavy UI | VLC, mpv | Clean dark design, three tabs |
+| Clunky / heavy UI | VLC, mpv | Clean dark design, two pages organised by folders |
 | Losing your place | many players | Every video remembers its own position |
 | Sound stops when the screen turns off | video-first players | Background play + lock-screen widget |
 
 ## Features
-**Library:** Folders / Videos / Music tabs · grid or list · sort (name, date, size, length; ascending/descending) · search · NEW tags · resume progress on thumbnails · pull to refresh · long-press multi-select → delete, rename, move to folder, share, properties.
+**Library:** two pages — Videos and Music — each organised by folders · grid or list · sort (name, date, size, count/length; ascending/descending) · search · NEW tags · resume progress on thumbnails · pull to refresh · long-press multi-select → delete, rename, move to folder, share, properties · create, rename and delete folders.
 
 **Player:** hardware decoding with software audio fallback · drag the progress bar and the picture follows, with a frame preview above it · swipe sideways to seek (1–10 min per swipe) · swipe left/right edge for brightness / volume (up to 200%) · double-tap ±5/10/15/30 s · pinch to zoom · Fit / Crop / Stretch · screen lock · rotation · picture-in-picture (closing it stops playback) · speed 0.25–4× · audio and subtitle track menus · load .srt/.ass/.vtt · subtitle size, colour, background · subtitle delay (−10…+10 s) · screenshot to Pictures/Reel · sleep timer · repeat · playlist · file info · play as audio.
 

@@ -5,6 +5,7 @@
         app:actionViewClass="androidx.appcompat.widget.SearchView" app:showAsAction="always|collapseActionView" />
     <item android:id="@+id/sort" android:title="@string/sort" android:icon="@drawable/ic_sort" app:showAsAction="always" />
     <item android:id="@+id/view" android:title="@string/view_mode" android:icon="@drawable/ic_grid" app:showAsAction="always" />
+    <item android:id="@+id/new_folder" android:title="@string/new_folder" app:showAsAction="never" />
     <item android:id="@+id/url" android:title="@string/open_url" app:showAsAction="never" />
     <item android:id="@+id/refresh" android:title="@string/refresh" app:showAsAction="never" />
     <item android:id="@+id/settings" android:title="@string/settings" app:showAsAction="never" />
