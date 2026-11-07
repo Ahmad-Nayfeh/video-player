@@ -129,8 +129,45 @@ class MainActivity : AppCompatActivity() {
     private fun desc() = Settings.getBool(this, sortKey() + "_desc", !atRoot() && tab == VIDEOS)
     private fun colsKey() = "cols_${tab}_${level()}"
     private fun maxCols() = maxOf(2, resources.configuration.screenWidthDp / 100)
-    private fun cols() = Settings.getInt(this, colsKey(), if (atRoot()) 2 else 1).coerceIn(1, maxCols())
+    private fun cols() = Settings.getInt(this, colsKey(), if (atRoot() || tab == VIDEOS) 2 else 1).coerceIn(1, maxCols())
     private fun gridMode() = cols() > 1
+
+    private var pinching = false
+    private var pinchAcc = 1f
+    private val scaler by lazy {
+        android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(d: android.view.ScaleGestureDetector): Boolean { pinchAcc = 1f; return true }
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                pinchAcc *= d.scaleFactor
+                if (pinchAcc > 1.25f) { stepCols(-1); pinchAcc = 1f } else if (pinchAcc < 0.8f) { stepCols(+1); pinchAcc = 1f }
+                return true
+            }
+        })
+    }
+
+    private fun pinchAllowed() = rows.isNotEmpty() && rows.none { it is Row.S }
+
+    private fun inList(ev: android.view.MotionEvent): Boolean {
+        val r = android.graphics.Rect(); list.getGlobalVisibleRect(r)
+        return r.contains(ev.rawX.toInt(), ev.rawY.toInt())
+    }
+
+    /** Two fingers anywhere on the list resize the tiles; we see the touch before pull-to-refresh or the items do. */
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (pinchAllowed() || pinching) {
+            scaler.onTouchEvent(ev)
+            if (!pinching && ev.pointerCount > 1 && inList(ev)) {
+                pinching = true
+                val cancel = android.view.MotionEvent.obtain(ev).apply { action = android.view.MotionEvent.ACTION_CANCEL }
+                super.dispatchTouchEvent(cancel); cancel.recycle()
+            }
+            if (pinching) {
+                if (ev.actionMasked == android.view.MotionEvent.ACTION_UP || ev.actionMasked == android.view.MotionEvent.ACTION_CANCEL) pinching = false
+                return true
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
 
     /** Pinch on the list: spread fingers = bigger tiles (fewer columns), pinch = smaller tiles (more columns). */
     private fun stepCols(delta: Int) {
@@ -182,25 +219,6 @@ class MainActivity : AppCompatActivity() {
         list.layoutManager = grid
         list.adapter = adapter
         list.itemAnimator = null
-        val scaler = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            var acc = 1f
-            override fun onScaleBegin(d: android.view.ScaleGestureDetector): Boolean {
-                if (rows.any { it is Row.S }) return false
-                acc = 1f; refresh.isEnabled = false; return true
-            }
-            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
-                acc *= d.scaleFactor
-                if (acc > 1.28f) { stepCols(-1); acc = 1f } else if (acc < 0.78f) { stepCols(+1); acc = 1f }
-                return true
-            }
-            override fun onScaleEnd(d: android.view.ScaleGestureDetector) { refresh.isEnabled = true }
-        })
-        list.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
-            override fun onInterceptTouchEvent(rv: RecyclerView, e: android.view.MotionEvent): Boolean {
-                scaler.onTouchEvent(e); return scaler.isInProgress || e.pointerCount > 1
-            }
-            override fun onTouchEvent(rv: RecyclerView, e: android.view.MotionEvent) { scaler.onTouchEvent(e) }
-        })
 
         tab = Settings.getInt(this, "tab2", VIDEOS).coerceIn(VIDEOS, MUSIC)
         nav.selectedItemId = if (tab == MUSIC) R.id.nav_music else R.id.nav_videos
@@ -693,6 +711,7 @@ class MainActivity : AppCompatActivity() {
         val more: View = v.findViewById(R.id.more)
         val box: View = v.findViewById(R.id.thumbBox)
         val mosaic: View? = v.findViewById(R.id.mosaic)
+        val quality: TextView? = v.findViewById(R.id.quality)
         val tiles: List<ImageView> = listOfNotNull(v.findViewById(R.id.m1), v.findViewById(R.id.m2), v.findViewById(R.id.m3), v.findViewById(R.id.m4))
     }
 
@@ -753,9 +772,11 @@ class MainActivity : AppCompatActivity() {
                     val v = r.v
                     h.title.text = v.title
                     val meta = ArrayList<String>()
-                    if (v.quality.isNotEmpty()) meta += v.quality
+                    h.quality?.visibility = if (v.quality.isNotEmpty()) View.VISIBLE else View.GONE
+                    h.quality?.text = v.quality
                     meta += fmtSize(ctx, v.size)
-                    if (folder == null || query.isNotBlank()) meta += v.folder
+                    if (grid.spanCount >= 3) Unit
+                    else if (folder == null || query.isNotBlank()) meta += v.folder
                     else meta += DateUtils.getRelativeTimeSpanString(v.date * 1000, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS).toString()
                     h.sub.text = meta.joinToString("  ·  ")
                     h.badge.visibility = if (v.duration > 0) View.VISIBLE else View.GONE

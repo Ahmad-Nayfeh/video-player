@@ -58,6 +58,23 @@ class ScreensTest {
         Resume.save(app, MediaRepo.fakeVideos!![2].key, 2_000_000L, 4_290_000L)
     }
 
+    private fun pinch(a: Activity, spread: Boolean) {
+        val cx = 600f; val cy = 1300f
+        val start = if (spread) 120f else 450f; val end = if (spread) 450f else 120f
+        val t0 = android.os.SystemClock.uptimeMillis()
+        fun ev(action: Int, n: Int, d: Float, t: Long): android.view.MotionEvent {
+            val props = Array(n) { android.view.MotionEvent.PointerProperties().apply { id = it; toolType = android.view.MotionEvent.TOOL_TYPE_FINGER } }
+            val coords = Array(n) { i -> android.view.MotionEvent.PointerCoords().apply { x = cx; y = if (i == 0) cy - d else cy + d; pressure = 1f; size = 1f } }
+            return android.view.MotionEvent.obtain(t0, t, action, n, props, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
+        }
+        val shift = android.view.MotionEvent.ACTION_POINTER_INDEX_SHIFT
+        a.dispatchTouchEvent(ev(android.view.MotionEvent.ACTION_DOWN, 1, start, t0))
+        a.dispatchTouchEvent(ev(android.view.MotionEvent.ACTION_POINTER_DOWN or (1 shl shift), 2, start, t0 + 10))
+        for (k in 1..24) a.dispatchTouchEvent(ev(android.view.MotionEvent.ACTION_MOVE, 2, start + (end - start) * k / 24, t0 + 10 + k * 16L))
+        a.dispatchTouchEvent(ev(android.view.MotionEvent.ACTION_POINTER_UP or (1 shl shift), 2, end, t0 + 420))
+        a.dispatchTouchEvent(ev(android.view.MotionEvent.ACTION_UP, 1, end, t0 + 430))
+    }
+
     private fun settle() = repeat(15) { Thread.sleep(40); shadowOf(Looper.getMainLooper()).idle() }
 
     private fun shot(a: Activity, name: String) {
@@ -84,12 +101,27 @@ class ScreensTest {
         nav.selectedItemId = R.id.nav_videos; settle(); layout()
         shot(a, "1_video_folders")
         val step = MainActivity::class.java.getDeclaredMethod("stepCols", Int::class.javaPrimitiveType).apply { isAccessible = true }
-        step.invoke(a, 1); settle(); layout(); shot(a, "1b_three_columns")
+        pinch(a, spread = false); settle(); layout(); shot(a, "1b_three_columns")
+        org.junit.Assert.assertTrue((list.layoutManager as androidx.recyclerview.widget.GridLayoutManager).spanCount > 2)
+        step.invoke(a, 3 - (list.layoutManager as androidx.recyclerview.widget.GridLayoutManager).spanCount); settle(); layout()
         org.junit.Assert.assertEquals(3, (list.layoutManager as androidx.recyclerview.widget.GridLayoutManager).spanCount)
         step.invoke(a, -2); settle(); layout(); shot(a, "1c_list")
         org.junit.Assert.assertEquals(1, (list.layoutManager as androidx.recyclerview.widget.GridLayoutManager).spanCount)
         step.invoke(a, 1); settle(); layout()
-        list.getChildAt(0).performClick(); settle(); layout()
+        nav.selectedItemId = R.id.nav_videos; settle(); layout()
+        // open the "Movies" folder (5 videos) and pinch inside it
+        val moviesIdx = (0 until list.childCount).first { list.getChildAt(it).findViewById<android.widget.TextView>(R.id.title).text == "Movies" }
+        list.getChildAt(moviesIdx).performClick(); settle(); layout()
+        val glm = list.layoutManager as androidx.recyclerview.widget.GridLayoutManager
+        org.junit.Assert.assertEquals(2, glm.spanCount)                 // inside a folder: 2-column grid by default
+        shot(a, "2a_in_folder_2cols")
+        // real two-finger gestures, sent to the screen like the phone does
+        pinch(a, spread = false); settle(); layout()
+        org.junit.Assert.assertTrue("pinch-in should add columns", glm.spanCount > 2); shot(a, "2b_in_folder_more_cols")
+        pinch(a, spread = true); settle(); layout()
+        org.junit.Assert.assertTrue("spread should remove columns", glm.spanCount < 3); shot(a, "2c_in_folder_bigger")
+        step.invoke(a, -5); settle(); layout()
+        org.junit.Assert.assertEquals(1, glm.spanCount); shot(a, "2d_in_folder_list")
         shot(a, "2_video_folder_open")
         list.getChildAt(0).performLongClick(); settle(); layout()
         shot(a, "3_selection")

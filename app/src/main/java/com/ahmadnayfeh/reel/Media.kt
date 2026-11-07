@@ -26,7 +26,12 @@ data class Video(
     val relPath: String, val path: String?,
 ) {
     val key get() = uri.toString()
-    val title get() = name.substringBeforeLast('.')
+    /** Display title: "Interstellar.2014.1080p.mkv" → "Interstellar 2014 1080p" (file name is untouched). */
+    val title: String
+        get() {
+            val base = name.substringBeforeLast('.')
+            return if (' ' !in base && (base.count { it == '.' || it == '_' } >= 2)) base.replace('.', ' ').replace('_', ' ').trim() else base
+        }
     val quality: String
         get() {
             val s = minOf(width, height).takeIf { it > 0 } ?: return ""

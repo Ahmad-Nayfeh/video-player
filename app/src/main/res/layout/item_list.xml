@@ -11,15 +11,20 @@
 
     <FrameLayout
         android:id="@+id/thumbBox"
-        android:layout_width="136dp"
-        android:layout_height="77dp"
-        android:background="@drawable/thumb_bg">
+        android:layout_width="152dp"
+        android:layout_height="86dp"
+        android:background="@drawable/video_bg">
 
         <ImageView android:id="@+id/thumb" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" />
 
         <TextView android:id="@+id/badge" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end" android:layout_margin="6dp" android:background="@drawable/badge_bg"
+            android:layout_gravity="bottom|end" android:layout_margin="6dp" android:background="@drawable/pill_dark"
             android:paddingStart="5dp" android:paddingEnd="5dp" android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold" />
+
+        <TextView android:id="@+id/quality" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="top|end" android:layout_margin="6dp" android:background="@drawable/pill_dark"
+            android:paddingStart="6dp" android:paddingEnd="6dp" android:textColor="#FFFFFF" android:textSize="10sp"
+            android:textStyle="bold" android:visibility="gone" />
 
         <TextView android:id="@+id/newTag" android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_gravity="top|start" android:layout_margin="6dp" android:background="@drawable/new_bg"
@@ -43,7 +48,7 @@
         android:orientation="vertical">
 
         <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:ellipsize="end" android:maxLines="2" android:textColor="@color/ink" android:textSize="15sp" />
+            android:ellipsize="end" android:maxLines="2" android:textColor="@color/ink" android:textSize="15sp" android:fontFamily="sans-serif-medium" />
 
         <TextView android:id="@+id/sub" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="4dp" android:ellipsize="end" android:maxLines="1" android:textColor="@color/muted" android:textSize="12.5sp" />
