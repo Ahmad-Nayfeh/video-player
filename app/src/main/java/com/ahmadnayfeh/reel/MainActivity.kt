@@ -129,7 +129,7 @@ class MainActivity : AppCompatActivity() {
     private fun desc() = Settings.getBool(this, sortKey() + "_desc", !atRoot() && tab == VIDEOS)
     private fun colsKey() = "cols_${tab}_${level()}"
     private fun maxCols() = maxOf(2, resources.configuration.screenWidthDp / 100)
-    private fun cols() = Settings.getInt(this, colsKey(), if (atRoot() || tab == VIDEOS) 2 else 1).coerceIn(1, maxCols())
+    private fun cols() = Settings.getInt(this, colsKey(), 2).coerceIn(1, maxCols())
     private fun gridMode() = cols() > 1
 
     private var pinching = false
@@ -145,7 +145,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    private fun pinchAllowed() = rows.isNotEmpty() && rows.none { it is Row.S }
+    private fun pinchAllowed() = rows.isNotEmpty()
 
     private fun inList(ev: android.view.MotionEvent): Boolean {
         val r = android.graphics.Rect(); list.getGlobalVisibleRect(r)
@@ -352,10 +352,9 @@ class MainActivity : AppCompatActivity() {
         }
         back.isEnabled = inFolder
 
-        val songsShown = rows.any { it is Row.S }
-        grid.spanCount = if (!songsShown && gridMode()) cols() else 1
+        grid.spanCount = if (gridMode()) cols() else 1
         menu?.findItem(R.id.view)?.apply {
-            isVisible = !songsShown
+            isVisible = true
             setIcon(if (gridMode()) R.drawable.ic_list else R.drawable.ic_grid)
         }
         menu?.findItem(R.id.new_folder)?.isVisible = !inFolder
@@ -712,6 +711,7 @@ class MainActivity : AppCompatActivity() {
         val box: View = v.findViewById(R.id.thumbBox)
         val mosaic: View? = v.findViewById(R.id.mosaic)
         val quality: TextView? = v.findViewById(R.id.quality)
+        val playing: View? = v.findViewById(R.id.playing)
         val tiles: List<ImageView> = listOfNotNull(v.findViewById(R.id.m1), v.findViewById(R.id.m2), v.findViewById(R.id.m3), v.findViewById(R.id.m4))
     }
 
@@ -719,7 +719,7 @@ class MainActivity : AppCompatActivity() {
         override fun getItemCount() = rows.size
 
         override fun getItemViewType(position: Int) = when {
-            rows[position] is Row.S -> R.layout.item_song
+            rows[position] is Row.S -> if (grid.spanCount > 1) R.layout.item_song_grid else R.layout.item_song
             grid.spanCount > 1 && rows[position] is Row.F -> R.layout.item_folder
             grid.spanCount > 1 -> R.layout.item_grid
             else -> R.layout.item_list
@@ -795,11 +795,19 @@ class MainActivity : AppCompatActivity() {
                 is Row.S -> {
                     val s = r.s
                     h.title.text = s.title
-                    h.sub.text = listOf(s.artist, s.album).filter { it.isNotBlank() }.joinToString(" · ")
+                    val gridCard = grid.spanCount > 1
+                    val artist = s.artist.takeIf { it.isNotBlank() && it != s.folder }
+                    h.sub.text = when {
+                        gridCard -> artist ?: fmtSize(ctx, s.size)
+                        artist != null -> "$artist  ·  ${fmtTime(s.duration)}"
+                        else -> "${fmtTime(s.duration)}  ·  ${fmtSize(ctx, s.size)}"
+                    }
                     h.badge.text = fmtTime(s.duration)
                     val playing = controller?.currentMediaItem?.mediaId == s.key
+                    h.playing?.visibility = if (playing && h.check.visibility != View.VISIBLE) View.VISIBLE else View.GONE
                     h.title.setTextColor(ContextCompat.getColor(ctx, if (playing) R.color.accent else R.color.ink))
-                    Thumbs.load(h.thumb, s.uri, s.id, false, R.drawable.ic_music)
+                    val title = s.title
+                    Thumbs.load(h.thumb, s.uri, s.id, false, R.drawable.ic_music) { ArtLoader.cover(title, null, label = false) }
                     h.itemView.setOnClickListener {
                         if (selected.isNotEmpty()) toggle(s.key)
                         else { val l = rows.filterIsInstance<Row.S>().map { it.s }; playSongs(l, l.indexOf(s).coerceAtLeast(0)) }

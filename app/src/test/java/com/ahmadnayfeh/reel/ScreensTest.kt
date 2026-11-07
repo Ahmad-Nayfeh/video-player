@@ -48,8 +48,8 @@ class ScreensTest {
                 now - i * 86_400L * 5, folder, folder, if (i == 3) 3840 else 1920, if (i == 3) 2160 else 1080, "$folder/", "/sdcard/$folder/$n")
         }
         MediaRepo.fakeSongs = (1..5).map { i ->
-            val fo = if (i <= 3) "Quran" else "Podcasts"
-            Song(100L + i, Uri.parse("content://media/external/audio/media/$i"), "Song number $i", "Artist $i", "Album", 200_000L + i * 10_000, 5_000_000, now, null, fo, fo, "Music/$fo/")
+            val fo = if (i <= 3) "Shasha" else "Podcasts"
+            Song(100L + i, Uri.parse("content://media/external/audio/media/$i"), listOf("أروع التراتيل الندية من سورتي العنكبوت والروم", "الشيخ أحمد بن طالب تلاوة تسكن بها القلوب", "ترتيل حجازي بديع", "Song four", "Song five")[i - 1], if (i > 3) "Artist $i" else "", "", 200_000L + i * 10_000, 5_000_000, now, null, fo, fo, "Music/$fo/")
         }
         val app = ApplicationProvider.getApplicationContext<Application>()
         shadowOf(app).grantPermissions(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO,
@@ -146,7 +146,14 @@ class ScreensTest {
         nav.selectedItemId = R.id.nav_music; settle(); layout()
         shot(a, "4_music_folders")
         list.getChildAt(0).performClick(); settle(); layout()
+        val g2 = list.layoutManager as androidx.recyclerview.widget.GridLayoutManager
+        org.junit.Assert.assertEquals(2, g2.spanCount)                  // songs inside a folder: grid by default
         shot(a, "5_music_folder_open")
+        pinch(a, spread = false); settle(); layout()
+        org.junit.Assert.assertTrue("pinch-in on songs should add columns", g2.spanCount > 2); shot(a, "5b_music_more_cols")
+        pinch(a, spread = true); settle(); layout()
+        step.invoke(a, -5); settle(); layout()
+        org.junit.Assert.assertEquals(1, g2.spanCount); shot(a, "5c_music_list")
     }
 
     @Test fun player() {

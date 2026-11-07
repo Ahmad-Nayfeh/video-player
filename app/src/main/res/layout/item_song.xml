@@ -5,25 +5,32 @@
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="6dp">
+    android:paddingStart="6dp"
+    android:paddingTop="7dp"
+    android:paddingEnd="2dp"
+    android:paddingBottom="7dp">
 
-    <FrameLayout android:id="@+id/thumbBox" android:layout_width="54dp" android:layout_height="54dp" android:background="@drawable/thumb_bg">
-        <ImageView android:id="@+id/thumb" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" />
+    <FrameLayout android:id="@+id/thumbBox" android:layout_width="64dp" android:layout_height="64dp" android:background="@drawable/video_bg">
+        <ImageView android:id="@+id/thumb" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="centerCrop" android:importantForAccessibility="no" />
+        <ImageView android:id="@+id/playing" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:background="@drawable/sel_overlay" android:padding="20dp" android:src="@drawable/ic_volume"
+            android:tint="@color/accent" android:visibility="gone" android:importantForAccessibility="no" />
         <ImageView android:id="@+id/check" android:layout_width="match_parent" android:layout_height="match_parent"
-            android:background="@drawable/sel_overlay" android:padding="14dp" android:src="@drawable/ic_check"
+            android:background="@drawable/sel_overlay" android:padding="18dp" android:src="@drawable/ic_check"
             android:tint="@color/accent" android:visibility="gone" android:importantForAccessibility="no" />
     </FrameLayout>
 
     <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="14dp"
         android:layout_weight="1" android:orientation="vertical">
         <TextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:ellipsize="end" android:maxLines="1" android:textColor="@color/ink" android:textSize="15sp" />
+            android:ellipsize="end" android:maxLines="2" android:lineSpacingExtra="1dp" android:textColor="@color/ink"
+            android:textSize="15sp" android:fontFamily="sans-serif-medium" />
         <TextView android:id="@+id/sub" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="3dp" android:ellipsize="end" android:maxLines="1" android:textColor="@color/muted" android:textSize="12.5sp" />
+            android:layout_marginTop="4dp" android:ellipsize="end" android:maxLines="1" android:textColor="@color/muted" android:textSize="12.5sp" />
     </LinearLayout>
 
-    <TextView android:id="@+id/badge" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_marginStart="8dp" android:textColor="@color/muted" android:textSize="12.5sp" />
+    <TextView android:id="@+id/badge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="gone" />
 
     <ImageButton android:id="@+id/more" android:layout_width="40dp" android:layout_height="40dp"
         android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/more"
