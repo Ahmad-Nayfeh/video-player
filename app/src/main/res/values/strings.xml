@@ -147,25 +147,10 @@
     <string name="lock_controls_sum">Choose what the lock-screen widget can do</string>
     <string-array name="lock_names"><item>Full controls</item><item>Play / pause only (no seeking)</item></string-array>
     <string-array name="lock_values"><item>full</item><item>simple</item></string-array>
-    <string name="color_mode">Picture mode</string>
-    <string name="cm_normal">Normal</string>
-    <string name="cm_enhance">Auto enhance</string>
-    <string name="cm_vivid">Vivid</string>
-    <string name="cm_sport">Sport</string>
-    <string name="cm_cinema">Cinema</string>
-    <string name="cm_night">Night (eye comfort)</string>
-    <string name="cm_warm">Warm</string>
-    <string name="cm_cool">Cool</string>
-    <string name="cm_bright">Bright</string>
-    <string name="cm_mono">Black &amp; white</string>
     <string name="screenshot">Screenshot</string>
     <string name="screenshot_saved">Screenshot saved to Pictures/Reel</string>
     <string name="screenshot_failed">Couldn\'t take a screenshot</string>
     <string name="sub_delay">Subtitle delay</string>
     <string name="sub_delay_embedded_note">Embedded subtitles can only be delayed (shown later). Loaded subtitle files can move both ways.</string>
     <string name="reset">Reset</string>
-    <string name="adjust">Picture adjustments</string>
-    <string name="adj_brightness">Brightness</string>
-    <string name="adj_contrast">Contrast</string>
-    <string name="adj_saturation">Saturation</string>
 </resources>

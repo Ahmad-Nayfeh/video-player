@@ -197,7 +197,6 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         pv.findViewById<View>(R.id.reel_rotate).setOnClickListener { toggleRotation() }
         pv.findViewById<View>(R.id.reel_queue).setOnClickListener { queueSheet() }
         pv.findViewById<View>(R.id.reel_pip).setOnClickListener { enterPip() }
-        pv.findViewById<View>(R.id.reel_color).setOnClickListener { colorModeSheet() }
         pv.findViewById<View>(R.id.reel_shot).setOnClickListener { screenshot() }
         pv.findViewById<View>(R.id.reel_aspect).setOnClickListener { setResize((resizeIdx + 1) % resizeModes.size, true) }
         speedBtn.setOnClickListener { speedSheet() }
@@ -215,9 +214,6 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         player.playbackParameters = PlaybackParameters(Settings.getFloat(this, "speed", 1f))
         player.pauseAtEndOfMediaItems = !Settings.autoNext(this)
         updateSpeedLabel()
-        if (player.audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
-            enhancer = runCatching { LoudnessEnhancer(player.audioSessionId) }.getOrNull()
-        }
         if (Settings.bgPlay(this)) connectBackground()
         load(intent)
     }
@@ -245,8 +241,6 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         if (items.isEmpty()) { finish(); return }
         val start = if (Settings.resume(this)) Resume.get(this, items[index].mediaId) else 0L
         player.setMediaItems(items, index, start)
-        val fx = currentEffects()
-        if (fx.isNotEmpty() || effectsReady) { player.setVideoEffects(fx); effectsReady = true }
         player.prepare()
         player.play()
         if (start > 0) showResumeChip(start)
@@ -458,6 +452,10 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
 
     private fun setBoost(b: Float) {
         boost = b
+        if (enhancer == null && b > 0f && player.audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+            // Attached only when you actually boost: an always-on audio effect can cause crackles at high speed.
+            enhancer = runCatching { LoudnessEnhancer(player.audioSessionId) }.getOrNull()
+        }
         val e = enhancer ?: return
         runCatching { e.setTargetGain((b * 1000).toInt()); e.enabled = b > 0f } // up to +10 dB
     }
@@ -632,9 +630,6 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
     private fun moreSheet() {
         val s = Sheet(this, null)
         s.row(R.drawable.ic_speed, getString(R.string.speed), fmtSpeed(player.playbackParameters.speed)) { speedSheet() }
-        s.row(R.drawable.ic_palette, getString(R.string.color_mode),
-            getString(ColorModes.byKey(Settings.p(this).getString("color_mode", "normal")).label)) { colorModeSheet() }
-        s.row(R.drawable.ic_tune, getString(R.string.adjust)) { adjustSheet() }
         s.row(R.drawable.ic_camera, getString(R.string.screenshot)) { screenshot() }
         s.row(R.drawable.ic_aspect, getString(R.string.aspect), resizeLabels[resizeIdx]) {
             val a = Sheet(this, getString(R.string.aspect))
@@ -961,24 +956,42 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
     // ---------------- screenshot ----------------
 
     private fun screenshot() {
+        val uri = player.currentMediaItem?.localConfiguration?.uri
+        val pos = player.currentPosition
+        val title = (player.currentMediaItem?.mediaMetadata?.title ?: "Reel").toString().replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(40)
+        val name = "Reel_${title}_${fmtTime(pos).replace(':', '-')}.jpg"
+        flash(R.drawable.ic_camera, getString(R.string.screenshot) + "…")
+        Thread {
+            // 1) exact frame decoded from the file at full resolution (works on every phone for local files)
+            var bmp: android.graphics.Bitmap? = null
+            if (uri != null && uri.scheme != "http" && uri.scheme != "https") bmp = runCatching {
+                val r = android.media.MediaMetadataRetriever()
+                try { r.setDataSource(this, uri); r.getFrameAtTime(pos * 1000, android.media.MediaMetadataRetriever.OPTION_CLOSEST) }
+                finally { r.release() }
+            }.getOrNull()
+            if (bmp != null) {
+                val ok = saveImage(bmp, name)
+                runOnUiThread { screenshotResult(ok) }
+            } else runOnUiThread { pixelCopyShot(name) } // 2) fallback, e.g. network streams
+        }.start()
+    }
+
+    private fun screenshotResult(ok: Boolean) {
+        if (ok) flash(R.drawable.ic_camera, getString(R.string.screenshot_saved))
+        else Toast.makeText(this, R.string.screenshot_failed, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun pixelCopyShot(name: String) {
         val sv = pv.videoSurfaceView as? android.view.SurfaceView
         val vs = player.videoSize
-        if (sv == null || vs.width <= 0 || vs.height <= 0 || Build.VERSION.SDK_INT < 24) {
-            Toast.makeText(this, R.string.screenshot_failed, Toast.LENGTH_SHORT).show(); return
-        }
+        if (sv == null || vs.width <= 0 || vs.height <= 0) { screenshotResult(false); return }
         val bmp = android.graphics.Bitmap.createBitmap(vs.width, vs.height, android.graphics.Bitmap.Config.ARGB_8888)
-        android.view.PixelCopy.request(sv, bmp, { r ->
-            if (r != android.view.PixelCopy.SUCCESS) { Toast.makeText(this, R.string.screenshot_failed, Toast.LENGTH_SHORT).show(); return@request }
-            val title = (player.currentMediaItem?.mediaMetadata?.title ?: "Reel").toString().replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(40)
-            val name = "Reel_${title}_${fmtTime(player.currentPosition).replace(':', '-')}.jpg"
-            Thread {
-                val ok = saveImage(bmp, name)
-                runOnUiThread {
-                    if (ok) flash(R.drawable.ic_camera, getString(R.string.screenshot_saved))
-                    else Toast.makeText(this, R.string.screenshot_failed, Toast.LENGTH_SHORT).show()
-                }
-            }.start()
-        }, handler)
+        runCatching {
+            android.view.PixelCopy.request(sv, bmp, { r ->
+                if (r != android.view.PixelCopy.SUCCESS) screenshotResult(false)
+                else Thread { val ok = saveImage(bmp, name); runOnUiThread { screenshotResult(ok) } }.start()
+            }, handler)
+        }.onFailure { screenshotResult(false) }
     }
 
     private fun saveImage(bmp: android.graphics.Bitmap, name: String): Boolean = runCatching {
@@ -1002,88 +1015,9 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         true
     }.getOrDefault(false)
 
-    // ---------------- picture adjustments ----------------
-
-    private fun adj(k: String) = Settings.getInt(this, k, 0)
-
-    private fun currentEffects(): List<androidx.media3.common.Effect> {
-        val list = ArrayList(ColorModes.byKey(Settings.p(this).getString("color_mode", "normal")).effects())
-        val b = adj("adj_b"); val c = adj("adj_c"); val sa = adj("adj_s")
-        if (b != 0) list += androidx.media3.effect.Brightness(b / 100f)
-        if (c != 0) list += androidx.media3.effect.Contrast(c / 100f)
-        if (sa != 0) list += androidx.media3.effect.HslAdjustment.Builder().adjustSaturation(sa.toFloat()).build()
-        return list
-    }
-
-    private fun applyEffects() {
-        val list = currentEffects()
-        if (!effectsReady) {
-            if (list.isEmpty()) return
-            val pos = player.currentPosition
-            val idx = player.currentMediaItemIndex
-            val playing = player.playWhenReady
-            player.stop()
-            player.setVideoEffects(list)
-            effectsReady = true
-            player.seekTo(idx, pos)
-            player.prepare()
-            player.playWhenReady = playing
-        } else player.setVideoEffects(list)
-    }
-
-    private var lastLive = 0L
-    private fun adjustSheet() {
-        val s = Sheet(this, getString(R.string.adjust))
-        listOf(Triple("adj_b", R.string.adj_brightness, 50), Triple("adj_c", R.string.adj_contrast, 50), Triple("adj_s", R.string.adj_saturation, 100))
-            .forEach { (key, label, range) ->
-                val title = TextView(this).apply {
-                    textSize = 14f; setTextColor(ContextCompat.getColor(context, R.color.muted)); setPadding(dp(24), dp(8), dp(24), 0)
-                    text = getString(label) + "  " + adj(key)
-                }
-                val slider = Slider(this).apply {
-                    valueFrom = -range.toFloat(); valueTo = range.toFloat(); stepSize = 1f; value = adj(key).toFloat()
-                    setPadding(dp(16), 0, dp(16), 0)
-                    addOnChangeListener { _, v, fromUser ->
-                        title.text = getString(label) + "  " + v.toInt()
-                        if (fromUser) {
-                            Settings.putInt(context, key, v.toInt())
-                            val now = System.currentTimeMillis()
-                            if (effectsReady && now - lastLive > 150) { lastLive = now; applyEffects() }
-                        }
-                    }
-                    addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
-                        override fun onStartTrackingTouch(sl: Slider) {}
-                        override fun onStopTrackingTouch(sl: Slider) { applyEffects() }
-                    })
-                }
-                s.view(title).view(slider)
-            }
-        s.row(R.drawable.ic_refresh, getString(R.string.reset)) {
-            listOf("adj_b", "adj_c", "adj_s").forEach { Settings.putInt(this, it, 0) }; applyEffects()
-        }
-        s.show()
-    }
-
     private fun screenOn() = (getSystemService(POWER_SERVICE) as android.os.PowerManager).isInteractive
 
     private var closing = false
-    private var effectsReady = false
-
-    private fun colorModeSheet() {
-        val cur = Settings.p(this).getString("color_mode", "normal")
-        val s = Sheet(this, getString(R.string.color_mode))
-        ColorModes.all.forEach { m ->
-            s.row(R.drawable.ic_palette, getString(m.label), checked = m.key == cur) { setColorMode(m.key) }
-        }
-        s.show()
-    }
-
-    private fun setColorMode(key: String) {
-        Settings.p(this).edit().putString("color_mode", key).apply()
-        val m = ColorModes.byKey(key)
-        applyEffects()
-        flash(R.drawable.ic_palette, getString(m.label))
-    }
     private fun closeFromPip() {
         if (closing) return
         closing = true

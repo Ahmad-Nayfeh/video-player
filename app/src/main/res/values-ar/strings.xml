@@ -139,25 +139,10 @@
     <string name="lock_simple">تشغيل / إيقاف فقط (بلا تقديم)</string>
     <string name="lock_controls_sum">اختر ما يمكن فعله من ويدجت شاشة القفل</string>
     <string-array name="lock_names"><item>تحكم كامل</item><item>تشغيل / إيقاف فقط (بلا تقديم)</item></string-array>
-    <string name="color_mode">نمط الصورة</string>
-    <string name="cm_normal">عادي</string>
-    <string name="cm_enhance">تحسين تلقائي</string>
-    <string name="cm_vivid">حيوي</string>
-    <string name="cm_sport">رياضة</string>
-    <string name="cm_cinema">سينما</string>
-    <string name="cm_night">ليلي (راحة العين)</string>
-    <string name="cm_warm">دافئ</string>
-    <string name="cm_cool">بارد</string>
-    <string name="cm_bright">ساطع</string>
-    <string name="cm_mono">أبيض وأسود</string>
     <string name="screenshot">لقطة شاشة</string>
     <string name="screenshot_saved">حُفظت اللقطة في Pictures/Reel</string>
     <string name="screenshot_failed">تعذّر أخذ اللقطة</string>
     <string name="sub_delay">تأخير الترجمة</string>
     <string name="sub_delay_embedded_note">الترجمة المدمجة في الفيديو يمكن تأخيرها فقط. ملفات الترجمة التي تحمّلها يمكن تقديمها وتأخيرها.</string>
     <string name="reset">إعادة الضبط</string>
-    <string name="adjust">ضبط الصورة يدويًا</string>
-    <string name="adj_brightness">السطوع</string>
-    <string name="adj_contrast">التباين</string>
-    <string name="adj_saturation">التشبع</string>
 </resources>
