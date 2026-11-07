@@ -158,4 +158,14 @@
     <string name="cm_cool">Cool</string>
     <string name="cm_bright">Bright</string>
     <string name="cm_mono">Black &amp; white</string>
+    <string name="screenshot">Screenshot</string>
+    <string name="screenshot_saved">Screenshot saved to Pictures/Reel</string>
+    <string name="screenshot_failed">Couldn\'t take a screenshot</string>
+    <string name="sub_delay">Subtitle delay</string>
+    <string name="sub_delay_embedded_note">Embedded subtitles can only be delayed (shown later). Loaded subtitle files can move both ways.</string>
+    <string name="reset">Reset</string>
+    <string name="adjust">Picture adjustments</string>
+    <string name="adj_brightness">Brightness</string>
+    <string name="adj_contrast">Contrast</string>
+    <string name="adj_saturation">Saturation</string>
 </resources>

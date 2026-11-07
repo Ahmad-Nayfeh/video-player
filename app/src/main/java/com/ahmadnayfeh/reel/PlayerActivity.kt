@@ -81,6 +81,22 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
     private lateinit var topBar: View
     private lateinit var bottomBar: View
     private var session: MediaSession? = null
+    private lateinit var subs: SubtitleView
+    private var seekPreview: SeekPreview? = null
+
+    // subtitle delay: loaded files are shifted on disk (both directions); embedded cues are queued (later only)
+    private data class ExtSub(val uri: Uri, val name: String, val mime: String)
+    private val extSubs = HashMap<String, MutableList<ExtSub>>()
+    private var subDelayMs = 0L
+    private var cueDelayMs = 0L
+    private val cueQueue = ArrayDeque<Pair<Long, List<androidx.media3.common.text.Cue>>>()
+    private val cuePump = object : Runnable {
+        override fun run() {
+            val now = player.currentPosition
+            while (cueQueue.isNotEmpty() && cueQueue.first().first <= now) subs.setCues(cueQueue.removeFirst().second)
+            if (cueQueue.isNotEmpty()) handler.postDelayed(this, 40)
+        }
+    }
 
     private val audio by lazy { getSystemService(AUDIO_SERVICE) as AudioManager }
     private val handler = Handler(Looper.getMainLooper())
@@ -145,6 +161,7 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         speedBtn = pv.findViewById(R.id.reel_speed)
         topBar = pv.findViewById(R.id.reel_top)
         bottomBar = pv.findViewById(R.id.reel_bottom)
+        subs = findViewById(R.id.subs)
 
         val bars = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
         ViewCompat.setOnApplyWindowInsetsListener(gestures) { _, ins ->
@@ -158,6 +175,9 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         pv.player = player
         pv.setTimeBarScrubbingEnabled(true) // the picture follows your finger while dragging the bar
         session = runCatching { MediaSession.Builder(this, player).setId("video").build() }.getOrNull()
+        pv.subtitleView?.visibility = View.GONE // we draw subtitles ourselves so they can be delayed
+        seekPreview = SeekPreview(this, findViewById(R.id.seekPreview), pv.findViewById(androidx.media3.ui.R.id.exo_progress),
+            { player.currentMediaItem?.localConfiguration?.uri }, { player.duration })
 
         gestures.listener = this
         gestures.allowSeek = Settings.gSeek(this)
@@ -178,6 +198,7 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         pv.findViewById<View>(R.id.reel_queue).setOnClickListener { queueSheet() }
         pv.findViewById<View>(R.id.reel_pip).setOnClickListener { enterPip() }
         pv.findViewById<View>(R.id.reel_color).setOnClickListener { colorModeSheet() }
+        pv.findViewById<View>(R.id.reel_shot).setOnClickListener { screenshot() }
         pv.findViewById<View>(R.id.reel_aspect).setOnClickListener { setResize((resizeIdx + 1) % resizeModes.size, true) }
         speedBtn.setOnClickListener { speedSheet() }
         unlockBtn.setOnClickListener { setLocked(false) }
@@ -224,8 +245,8 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         if (items.isEmpty()) { finish(); return }
         val start = if (Settings.resume(this)) Resume.get(this, items[index].mediaId) else 0L
         player.setMediaItems(items, index, start)
-        val cm = ColorModes.byKey(Settings.p(this).getString("color_mode", "normal"))
-        if (cm.key != "normal" || effectsReady) { player.setVideoEffects(cm.effects()); effectsReady = true }
+        val fx = currentEffects()
+        if (fx.isNotEmpty() || effectsReady) { player.setVideoEffects(fx); effectsReady = true }
         player.prepare()
         player.play()
         if (start > 0) showResumeChip(start)
@@ -274,10 +295,18 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
                 if (p > 0) { player.seekTo(p); showResumeChip(p) }
             }
             mediaItem?.let { Resume.markSeen(this@PlayerActivity, it.mediaId); loadArt(it) }
+            subDelayMs = 0; cueDelayMs = 0; cueQueue.clear()
             autoOriented = false
         }
 
+        override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
+            if (cueDelayMs <= 0) { subs.setCues(cueGroup.cues); return }
+            cueQueue.addLast(player.currentPosition + cueDelayMs to cueGroup.cues)
+            handler.removeCallbacks(cuePump); handler.post(cuePump)
+        }
+
         override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) { cueQueue.clear(); subs.setCues(emptyList()) }
             if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) old.mediaItem?.let { Resume.clear(this@PlayerActivity, it.mediaId) }
         }
 
@@ -507,6 +536,7 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         }
         s.divider()
         s.row(R.drawable.ic_folder_open, getString(R.string.load_subtitle)) { pickSubtitle.launch(arrayOf("*/*")) }
+        s.row(R.drawable.ic_timer, getString(R.string.sub_delay), fmtDelay(subDelayMs)) { subDelaySheet() }
         s.row(R.drawable.ic_edit, getString(R.string.subtitle_style)) { subtitleStyleSheet() }
         s.show()
     }
@@ -546,7 +576,7 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
     }
 
     private fun applySubtitleStyle() {
-        pv.subtitleView?.apply {
+        subs.apply {
             setApplyEmbeddedStyles(true)
             setApplyEmbeddedFontSizes(false)
             setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * Settings.subScale(this@PlayerActivity))
@@ -604,6 +634,8 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         s.row(R.drawable.ic_speed, getString(R.string.speed), fmtSpeed(player.playbackParameters.speed)) { speedSheet() }
         s.row(R.drawable.ic_palette, getString(R.string.color_mode),
             getString(ColorModes.byKey(Settings.p(this).getString("color_mode", "normal")).label)) { colorModeSheet() }
+        s.row(R.drawable.ic_tune, getString(R.string.adjust)) { adjustSheet() }
+        s.row(R.drawable.ic_camera, getString(R.string.screenshot)) { screenshot() }
         s.row(R.drawable.ic_aspect, getString(R.string.aspect), resizeLabels[resizeIdx]) {
             val a = Sheet(this, getString(R.string.aspect))
             resizeLabels.forEachIndexed { i, l -> a.row(R.drawable.ic_aspect, l, checked = i == resizeIdx) { setResize(i, true) } }
@@ -711,6 +743,8 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
             else -> MimeTypes.APPLICATION_SUBRIP
         }
         val current = player.currentMediaItem ?: return
+        extSubs.getOrPut(current.mediaId) { mutableListOf() }.add(ExtSub(uri, displayName(uri), mime))
+        subDelayMs = 0; cueDelayMs = 0
         val sub = MediaItem.SubtitleConfiguration.Builder(uri).setMimeType(mime)
             .setSelectionFlags(C.SELECTION_FLAG_DEFAULT).setLabel(displayName(uri)).build()
         val updated = current.buildUpon()
@@ -852,9 +886,182 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
         saveResume()
         runCatching { enhancer?.release() }
         session?.release()
+        seekPreview?.release()
         player.release()
         bgFuture?.let { MediaController.releaseFuture(it) }
         super.onDestroy()
+    }
+
+    // ---------------- subtitle delay ----------------
+
+    private fun fmtDelay(ms: Long) = (if (ms > 0) "+" else if (ms < 0) "−" else "") + "%.1f s".format(Locale.US, abs(ms) / 1000f)
+
+    private fun selectedTextIsExternal(): Boolean {
+        val names = extSubs[player.currentMediaItem?.mediaId]?.map { it.name } ?: return false
+        return tracksOf(C.TRACK_TYPE_TEXT).any { (g, i) -> g.isTrackSelected(i) && g.getTrackFormat(i).label in names }
+    }
+
+    private fun subDelaySheet() {
+        val s = Sheet(this, getString(R.string.sub_delay))
+        val label = TextView(this).apply {
+            textSize = 30f; setTextColor(ContextCompat.getColor(context, R.color.ink)); paint.isFakeBoldText = true
+            gravity = android.view.Gravity.CENTER; text = fmtDelay(subDelayMs)
+        }
+        val slider = Slider(this).apply {
+            valueFrom = -10f; valueTo = 10f; stepSize = 0.1f
+            value = (subDelayMs / 100L).toFloat() / 10f
+            setPadding(dp(16), 0, dp(16), 0)
+            addOnChangeListener { _, v, _ -> label.text = fmtDelay((v * 1000).roundToInt().toLong()) }
+            addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                override fun onStartTrackingTouch(sl: Slider) {}
+                override fun onStopTrackingTouch(sl: Slider) { applySubDelay((sl.value * 1000).roundToInt().toLong()) }
+            })
+        }
+        val steps = listOf(-500L, -100L, 0L, 100L, 500L)
+        val chipView = chips(listOf("−0.5", "−0.1", getString(R.string.reset), "+0.1", "+0.5"), -1) { i ->
+            val v = if (steps[i] == 0L) 0L else (subDelayMs + steps[i]).coerceIn(-10_000, 10_000)
+            slider.value = (v / 100L).toFloat() / 10f; label.text = fmtDelay(v); applySubDelay(v)
+        }
+        val note = TextView(this).apply {
+            text = getString(R.string.sub_delay_embedded_note); textSize = 12.5f
+            setTextColor(ContextCompat.getColor(context, R.color.muted)); setPadding(dp(24), dp(4), dp(24), dp(8))
+        }
+        s.view(label).view(slider).view(chipView).view(note).show()
+    }
+
+    private fun applySubDelay(ms: Long) {
+        subDelayMs = ms
+        val item = player.currentMediaItem ?: return
+        val ext = extSubs[item.mediaId]
+        if (ext != null && selectedTextIsExternal()) {
+            // Rewrite the loaded subtitle files with shifted times (works both ways).
+            cueDelayMs = 0
+            val selectedName = tracksOf(C.TRACK_TYPE_TEXT).firstOrNull { (g, i) -> g.isTrackSelected(i) }?.let { (g, i) -> g.getTrackFormat(i).label }
+            val configs = ext.map { e ->
+                val u = if (ms == 0L) e.uri else SubShift.shifted(this, e.uri, e.name, -ms) ?: e.uri
+                MediaItem.SubtitleConfiguration.Builder(u).setMimeType(e.mime).setLabel(e.name)
+                    .setSelectionFlags(if (e.name == selectedName) C.SELECTION_FLAG_DEFAULT else 0).build()
+            }
+            val idx = player.currentMediaItemIndex
+            val pos = player.currentPosition
+            val playing = player.playWhenReady
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).build()
+            player.replaceMediaItem(idx, item.buildUpon().setSubtitleConfigurations(configs).build())
+            player.seekTo(idx, pos); player.prepare(); player.playWhenReady = playing
+            subDelayMs = ms
+        } else {
+            cueDelayMs = ms.coerceAtLeast(0)
+            if (ms < 0) Toast.makeText(this, R.string.sub_delay_embedded_note, Toast.LENGTH_LONG).show()
+            cueQueue.clear()
+        }
+        flash(R.drawable.ic_subtitle_w, getString(R.string.sub_delay) + "  " + fmtDelay(if (cueDelayMs > 0 || selectedTextIsExternal()) ms else cueDelayMs))
+    }
+
+    // ---------------- screenshot ----------------
+
+    private fun screenshot() {
+        val sv = pv.videoSurfaceView as? android.view.SurfaceView
+        val vs = player.videoSize
+        if (sv == null || vs.width <= 0 || vs.height <= 0 || Build.VERSION.SDK_INT < 24) {
+            Toast.makeText(this, R.string.screenshot_failed, Toast.LENGTH_SHORT).show(); return
+        }
+        val bmp = android.graphics.Bitmap.createBitmap(vs.width, vs.height, android.graphics.Bitmap.Config.ARGB_8888)
+        android.view.PixelCopy.request(sv, bmp, { r ->
+            if (r != android.view.PixelCopy.SUCCESS) { Toast.makeText(this, R.string.screenshot_failed, Toast.LENGTH_SHORT).show(); return@request }
+            val title = (player.currentMediaItem?.mediaMetadata?.title ?: "Reel").toString().replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(40)
+            val name = "Reel_${title}_${fmtTime(player.currentPosition).replace(':', '-')}.jpg"
+            Thread {
+                val ok = saveImage(bmp, name)
+                runOnUiThread {
+                    if (ok) flash(R.drawable.ic_camera, getString(R.string.screenshot_saved))
+                    else Toast.makeText(this, R.string.screenshot_failed, Toast.LENGTH_SHORT).show()
+                }
+            }.start()
+        }, handler)
+    }
+
+    private fun saveImage(bmp: android.graphics.Bitmap, name: String): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val cv = android.content.ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/Reel")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), cv)!!
+            contentResolver.openOutputStream(uri)!!.use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, it) }
+            contentResolver.update(uri, android.content.ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "Reel").apply { mkdirs() }
+            val f = java.io.File(dir, name)
+            f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, it) }
+            android.media.MediaScannerConnection.scanFile(this, arrayOf(f.path), null, null)
+        }
+        true
+    }.getOrDefault(false)
+
+    // ---------------- picture adjustments ----------------
+
+    private fun adj(k: String) = Settings.getInt(this, k, 0)
+
+    private fun currentEffects(): List<androidx.media3.common.Effect> {
+        val list = ArrayList(ColorModes.byKey(Settings.p(this).getString("color_mode", "normal")).effects())
+        val b = adj("adj_b"); val c = adj("adj_c"); val sa = adj("adj_s")
+        if (b != 0) list += androidx.media3.effect.Brightness(b / 100f)
+        if (c != 0) list += androidx.media3.effect.Contrast(c / 100f)
+        if (sa != 0) list += androidx.media3.effect.HslAdjustment.Builder().adjustSaturation(sa.toFloat()).build()
+        return list
+    }
+
+    private fun applyEffects() {
+        val list = currentEffects()
+        if (!effectsReady) {
+            if (list.isEmpty()) return
+            val pos = player.currentPosition
+            val idx = player.currentMediaItemIndex
+            val playing = player.playWhenReady
+            player.stop()
+            player.setVideoEffects(list)
+            effectsReady = true
+            player.seekTo(idx, pos)
+            player.prepare()
+            player.playWhenReady = playing
+        } else player.setVideoEffects(list)
+    }
+
+    private var lastLive = 0L
+    private fun adjustSheet() {
+        val s = Sheet(this, getString(R.string.adjust))
+        listOf(Triple("adj_b", R.string.adj_brightness, 50), Triple("adj_c", R.string.adj_contrast, 50), Triple("adj_s", R.string.adj_saturation, 100))
+            .forEach { (key, label, range) ->
+                val title = TextView(this).apply {
+                    textSize = 14f; setTextColor(ContextCompat.getColor(context, R.color.muted)); setPadding(dp(24), dp(8), dp(24), 0)
+                    text = getString(label) + "  " + adj(key)
+                }
+                val slider = Slider(this).apply {
+                    valueFrom = -range.toFloat(); valueTo = range.toFloat(); stepSize = 1f; value = adj(key).toFloat()
+                    setPadding(dp(16), 0, dp(16), 0)
+                    addOnChangeListener { _, v, fromUser ->
+                        title.text = getString(label) + "  " + v.toInt()
+                        if (fromUser) {
+                            Settings.putInt(context, key, v.toInt())
+                            val now = System.currentTimeMillis()
+                            if (effectsReady && now - lastLive > 150) { lastLive = now; applyEffects() }
+                        }
+                    }
+                    addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                        override fun onStartTrackingTouch(sl: Slider) {}
+                        override fun onStopTrackingTouch(sl: Slider) { applyEffects() }
+                    })
+                }
+                s.view(title).view(slider)
+            }
+        s.row(R.drawable.ic_refresh, getString(R.string.reset)) {
+            listOf("adj_b", "adj_c", "adj_s").forEach { Settings.putInt(this, it, 0) }; applyEffects()
+        }
+        s.show()
     }
 
     private fun screenOn() = (getSystemService(POWER_SERVICE) as android.os.PowerManager).isInteractive
@@ -874,21 +1081,7 @@ class PlayerActivity : AppCompatActivity(), GestureLayout.Listener {
     private fun setColorMode(key: String) {
         Settings.p(this).edit().putString("color_mode", key).apply()
         val m = ColorModes.byKey(key)
-        if (!effectsReady) {
-            if (m.key == "normal") return
-            // The effects pipeline must exist before prepare(): rebuild once at the same position.
-            val pos = player.currentPosition
-            val idx = player.currentMediaItemIndex
-            val playing = player.playWhenReady
-            player.stop()
-            player.setVideoEffects(m.effects())
-            effectsReady = true
-            player.seekTo(idx, pos)
-            player.prepare()
-            player.playWhenReady = playing
-        } else {
-            player.setVideoEffects(m.effects())
-        }
+        applyEffects()
         flash(R.drawable.ic_palette, getString(m.label))
     }
     private fun closeFromPip() {

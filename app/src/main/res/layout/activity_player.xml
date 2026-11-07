@@ -15,6 +15,26 @@
         app:show_timeout="3500"
         app:animation_enabled="false" />
 
+    <androidx.media3.ui.SubtitleView
+        android:id="@+id/subs"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/seekPreview"
+        android:layout_width="168dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/info_bg"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="4dp"
+        android:visibility="gone">
+        <ImageView android:id="@+id/previewImage" android:layout_width="160dp" android:layout_height="90dp"
+            android:background="@drawable/thumb_bg" android:scaleType="centerCrop" android:importantForAccessibility="no" />
+        <TextView android:id="@+id/previewTime" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="2dp" android:layout_marginBottom="2dp" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" />
+    </LinearLayout>
+
     <LinearLayout
         android:id="@+id/info"
         android:layout_width="wrap_content"

@@ -97,6 +97,13 @@ class ScreensTest {
         a.findViewById<View>(R.id.reel_speed).performClick(); settle()
         a.findViewById<View>(R.id.reel_queue).performClick(); settle()
         a.findViewById<View>(R.id.reel_color).performClick(); settle()
+        a.findViewById<View>(R.id.reel_shot).performClick(); settle()
+        fun call(name: String, vararg args: Any) {
+            val m = PlayerActivity::class.java.declaredMethods.first { it.name == name && it.parameterCount == args.size }
+            m.isAccessible = true; m.invoke(a, *args); settle()
+        }
+        call("subDelaySheet"); call("applySubDelay", 500L); call("applySubDelay", -500L); call("applySubDelay", 0L)
+        call("adjustSheet"); call("subtitleSheet"); call("moreSheet")
         c.pause().stop().destroy()
     }
 

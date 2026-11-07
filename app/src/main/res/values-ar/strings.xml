@@ -150,4 +150,14 @@
     <string name="cm_cool">بارد</string>
     <string name="cm_bright">ساطع</string>
     <string name="cm_mono">أبيض وأسود</string>
+    <string name="screenshot">لقطة شاشة</string>
+    <string name="screenshot_saved">حُفظت اللقطة في Pictures/Reel</string>
+    <string name="screenshot_failed">تعذّر أخذ اللقطة</string>
+    <string name="sub_delay">تأخير الترجمة</string>
+    <string name="sub_delay_embedded_note">الترجمة المدمجة في الفيديو يمكن تأخيرها فقط. ملفات الترجمة التي تحمّلها يمكن تقديمها وتأخيرها.</string>
+    <string name="reset">إعادة الضبط</string>
+    <string name="adjust">ضبط الصورة يدويًا</string>
+    <string name="adj_brightness">السطوع</string>
+    <string name="adj_contrast">التباين</string>
+    <string name="adj_saturation">التشبع</string>
 </resources>

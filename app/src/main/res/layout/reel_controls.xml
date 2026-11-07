@@ -28,6 +28,7 @@
 
         <TextClock android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="6dp"
             android:format12Hour="h:mm" android:format24Hour="HH:mm" android:textColor="#B3FFFFFF" android:textSize="13sp" />
+        <ImageButton android:id="@+id/reel_shot" style="@style/CtlBtn" android:src="@drawable/ic_camera" android:contentDescription="@string/screenshot" />
         <ImageButton android:id="@+id/reel_audio" style="@style/CtlBtn" android:src="@drawable/ic_audiotrack" android:contentDescription="@string/audio_track" />
         <ImageButton android:id="@+id/reel_subs" style="@style/CtlBtn" android:src="@drawable/ic_subtitle_w" android:contentDescription="@string/subtitles" />
         <ImageButton android:id="@+id/reel_more" style="@style/CtlBtn" android:src="@drawable/ic_more" android:contentDescription="@string/more" />

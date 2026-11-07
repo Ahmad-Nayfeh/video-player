@@ -13,6 +13,12 @@ Research into MX Player and its alternatives (VLC, KMPlayer, XPlayer, Just Playe
 | Losing your place | many players | Auto-resume for every video + a "Continue watching" shelf |
 | Music stops when the screen turns off | video-first players | Real background music service with lock-screen/headset controls and a sleep timer |
 
+## What's new in 1.3.0
+- **Seek preview**: a frame + time follows your finger while dragging the progress bar.
+- **Screenshot** button: saves the current frame at full video resolution to Pictures/Reel.
+- **Subtitle delay** (−10 s … +10 s): loaded subtitle files (SRT/VTT/ASS) are re-timed both ways; embedded subtitles can be delayed.
+- **Manual picture adjustments**: brightness, contrast and saturation sliders, on top of the picture modes.
+
 ## What's new in 1.2.0
 - **Picture modes**: Normal, Auto enhance, Vivid, Sport, Cinema, Night (eye comfort), Warm, Cool, Bright, Black & white — applied live on the GPU (palette button in the player).
 - Closing the picture-in-picture window now stops the video completely (no more sound continuing).
